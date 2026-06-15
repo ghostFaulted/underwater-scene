@@ -1,0 +1,17 @@
+# CMake / Build artifacts
+build/
+out/
+bin/
+*.exe
+*.dll
+*.lib
+
+# Visual Studio / IDE
+.vs/
+*.user
+*.suo
+.obsidian/
+
+# macOS / Windows OS files
+.DS_Store
+Thumbs.db
