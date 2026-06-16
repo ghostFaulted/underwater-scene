@@ -12,6 +12,9 @@ bin/
 *.suo
 .obsidian/
 
+# JetBrains IDEs
+.idea/
+
 # macOS / Windows OS files
 .DS_Store
 Thumbs.db

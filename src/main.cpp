@@ -5,7 +5,50 @@
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
 
+#include "Camera.h"
+
 #include <iostream>
+
+namespace {
+Camera g_camera;
+bool g_keyDown[1024] = {};
+bool g_firstMouseSample = true;
+double g_lastMouseX = 0.0;
+double g_lastMouseY = 0.0;
+
+void cursor_position_callback(GLFWwindow* window, double xpos, double ypos) {
+    (void)window;
+    if (g_firstMouseSample) {
+        g_lastMouseX = xpos;
+        g_lastMouseY = ypos;
+        g_firstMouseSample = false;
+    }
+
+    const auto deltaX = static_cast<float>(xpos - g_lastMouseX);
+    const auto deltaY = static_cast<float>(ypos - g_lastMouseY);
+    g_lastMouseX = xpos;
+    g_lastMouseY = ypos;
+
+    g_camera.ProcessMouse(deltaX, deltaY);
+}
+
+void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
+    (void)scancode;
+    (void)mods;
+
+    if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
+        glfwSetWindowShouldClose(window, true);
+    }
+
+    if (key >= 0 && key < 1024) {
+        if (action == GLFW_PRESS) {
+            g_keyDown[key] = true;
+        } else if (action == GLFW_RELEASE) {
+            g_keyDown[key] = false;
+        }
+    }
+}
+}
 
 // Callback function for handling window resizing
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
@@ -38,6 +81,9 @@ int main() {
     
     glfwMakeContextCurrent(window);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+    glfwSetCursorPosCallback(window, cursor_position_callback);
+    glfwSetKeyCallback(window, key_callback);
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
     // 3. Initialize GLAD
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
@@ -61,11 +107,41 @@ int main() {
     // Clear color set to a deep underwater blue
     glClearColor(0.05f, 0.15f, 0.25f, 1.0f);
 
+    auto lastFrameTime = static_cast<float>(glfwGetTime());
+    float debugPrintAccumulator = 0.0f;
+
     // 5. Main Render Loop
     while (!glfwWindowShouldClose(window)) {
+        const auto currentFrameTime = static_cast<float>(glfwGetTime());
+        const float deltaTime = currentFrameTime - lastFrameTime;
+        lastFrameTime = currentFrameTime;
+
         // --- Input Processing ---
-        if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
-            glfwSetWindowShouldClose(window, true);
+        g_camera.ProcessKeyboard(
+            g_keyDown[GLFW_KEY_W],
+            g_keyDown[GLFW_KEY_S],
+            g_keyDown[GLFW_KEY_A],
+            g_keyDown[GLFW_KEY_D],
+            deltaTime
+        );
+
+        // Force view matrix evaluation so camera path is exercised each frame.
+        (void)g_camera.GetViewMatrix();
+
+        debugPrintAccumulator += deltaTime;
+        if (debugPrintAccumulator >= 0.5f) {
+            debugPrintAccumulator = 0.0f;
+            const glm::vec3 position = g_camera.GetPosition();
+            const glm::vec3 forward = g_camera.GetForward();
+            const glm::vec3 up = g_camera.GetUp();
+            const glm::vec3 right = g_camera.GetRight();
+
+            std::cout
+                << "Pos: (" << position.x << ", " << position.y << ", " << position.z << ")"
+                << " | Forward: (" << forward.x << ", " << forward.y << ", " << forward.z << ")"
+                << " | Up: (" << up.x << ", " << up.y << ", " << up.z << ")"
+                << " | Right: (" << right.x << ", " << right.y << ", " << right.z << ")"
+                << std::endl;
         }
 
         // --- Logic & Rendering ---

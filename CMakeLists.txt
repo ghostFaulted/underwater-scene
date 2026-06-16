@@ -69,7 +69,16 @@ target_link_libraries(imgui PUBLIC glfw)
 add_executable(UnderwaterScene 
     src/main.cpp
     src/stb_image.cpp 
-    src/glad.c        
+    src/glad.c
+        src/Camera.cpp
+        src/Camera.h
+        src/SplinePath.cpp
+        src/SplinePath.h
+)
+
+add_executable(SplinePathTest
+    src/SplinePathTest.cpp
+    src/SplinePath.cpp
 )
 
 # Include directories
@@ -85,3 +94,5 @@ target_link_libraries(UnderwaterScene PRIVATE
     assimp
     imgui
 )
+
+target_link_libraries(SplinePathTest PRIVATE glm)
