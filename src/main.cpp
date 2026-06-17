@@ -13,14 +13,31 @@
 #include "Skybox.h"
 
 namespace {
-    Camera g_camera(glm::vec3(0.0f, 0.0f, 18.0f)); 
+    Camera g_camera(glm::vec3(0.0f, 0.0f, 18.0f));
     bool g_keyDown[1024] = {};
     bool g_firstMouseSample = true;
     double g_lastMouseX = 0.0;
     double g_lastMouseY = 0.0;
 
+    // Window dimensions state for dynamic projection matrix calculation
+    int g_windowWidth = 1280;
+    int g_windowHeight = 720;
+
+    // UI and interaction states
+    glm::vec3 ui_albedoColor = glm::vec3(0.5f, 0.0f, 0.0f);
+    float ui_ambientOcclusion = 1.0f;
+    float ui_flowMapIntensity = 0.5f;
+    bool ui_submarineLights = true;
+    bool g_cursorDisabled = true; // Tracks whether the cursor is locked for camera movement
+
     void cursor_position_callback(GLFWwindow* window, double xpos, double ypos) {
         (void)window;
+        // Only rotate camera if the cursor is captured
+        if (!g_cursorDisabled) {
+            g_firstMouseSample = true;
+            return;
+        }
+
         if (g_firstMouseSample) {
             g_lastMouseX = xpos;
             g_lastMouseY = ypos;
@@ -38,6 +55,22 @@ namespace {
         if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
             glfwSetWindowShouldClose(window, true);
 
+        // Toggle cursor mode (Capture / Free) via 'C' key
+        if (key == GLFW_KEY_C && action == GLFW_PRESS) {
+            g_cursorDisabled = !g_cursorDisabled;
+            if (g_cursorDisabled) {
+                glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+            }
+            else {
+                glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            }
+        }
+
+        // Toggle lights via 'F' key (Interaction 2)
+        if (key == GLFW_KEY_F && action == GLFW_PRESS) {
+            ui_submarineLights = !ui_submarineLights;
+        }
+
         if (key >= 0 && key < 1024) {
             if (action == GLFW_PRESS) g_keyDown[key] = true;
             else if (action == GLFW_RELEASE) g_keyDown[key] = false;
@@ -47,6 +80,8 @@ namespace {
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
     glViewport(0, 0, width, height);
+    g_windowWidth = width;
+    g_windowHeight = height;
 }
 
 unsigned int sphereVAO = 0;
@@ -134,6 +169,7 @@ int main() {
     glfwSetCursorPosCallback(window, cursor_position_callback);
     glfwSetKeyCallback(window, key_callback);
 
+    // Initial cursor capture setup
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) return -1;
@@ -158,11 +194,6 @@ int main() {
     glm::vec3 lightColors[] = {
         glm::vec3(300.0f), glm::vec3(300.0f), glm::vec3(300.0f), glm::vec3(300.0f)
     };
-    glm::vec3 albedoColor = glm::vec3(0.5f, 0.0f, 0.0f);
-
-    pbrShader.use();
-    pbrShader.setVec3("albedo", albedoColor);
-    pbrShader.setFloat("ao", 1.0f);
 
     auto lastFrameTime = static_cast<float>(glfwGetTime());
 
@@ -171,7 +202,10 @@ int main() {
         const float deltaTime = currentFrameTime - lastFrameTime;
         lastFrameTime = currentFrameTime;
 
-        g_camera.ProcessKeyboard(g_keyDown[GLFW_KEY_W], g_keyDown[GLFW_KEY_S], g_keyDown[GLFW_KEY_A], g_keyDown[GLFW_KEY_D], deltaTime);
+        // Process movement only if the cursor is captured
+        if (g_cursorDisabled) {
+            g_camera.ProcessKeyboard(g_keyDown[GLFW_KEY_W], g_keyDown[GLFW_KEY_S], g_keyDown[GLFW_KEY_A], g_keyDown[GLFW_KEY_D], deltaTime);
+        }
 
         glClearColor(0.05f, 0.1f, 0.15f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -180,18 +214,26 @@ int main() {
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
-        glm::mat4 projection = glm::perspective(glm::radians(45.0f), 1280.0f / 720.0f, 0.1f, 100.0f);
-        glm::mat4 view = g_camera.GetViewMatrix(); 
-        glm::vec3 cameraPos = g_camera.GetPosition(); 
+        // Calculate dynamic projection based on current window dimensions
+        float aspect = static_cast<float>(g_windowWidth) / static_cast<float>(g_windowHeight);
+        glm::mat4 projection = glm::perspective(glm::radians(45.0f), aspect, 0.1f, 100.0f);
+        glm::mat4 view = g_camera.GetViewMatrix();
+        glm::vec3 cameraPos = g_camera.GetPosition();
 
         pbrShader.use();
         pbrShader.setMat4("projection", projection);
         pbrShader.setMat4("view", view);
         pbrShader.setVec3("camPos", cameraPos);
 
+        // Upload live UI PBR variables to shader on every frame
+        pbrShader.setVec3("albedo", ui_albedoColor);
+        pbrShader.setFloat("ao", ui_ambientOcclusion);
+
         for (unsigned int i = 0; i < 4; ++i) {
             pbrShader.setVec3("lightPositions[" + std::to_string(i) + "]", lightPositions[i]);
-            pbrShader.setVec3("lightColors[" + std::to_string(i) + "]", lightColors[i]);
+            // If submarine lights are toggled off, dim the light colors to zero
+            glm::vec3 currentLightColor = ui_submarineLights ? lightColors[i] : glm::vec3(0.0f);
+            pbrShader.setVec3("lightColors[" + std::to_string(i) + "]", currentLightColor);
         }
 
         int nrRows = 5, nrColumns = 5;
@@ -212,7 +254,29 @@ int main() {
         skyboxShader.setMat4("projection", projection);
         skybox.Draw(skyboxShader);
 
+        // ImGui Window rendering
         ImGui::Begin("Combined Test");
+
+        ImGui::Separator();
+        ImGui::Text("System Controls");
+        ImGui::Text("Press 'C' to toggle Cursor lock.");
+        ImGui::Text("Cursor state: %s", g_cursorDisabled ? "LOCKED (Camera)" : "FREE (UI Active)");
+
+        ImGui::Separator();
+        ImGui::Text("PBR Materials");
+        ImGui::ColorEdit3("Albedo Base", &ui_albedoColor[0]);
+        ImGui::SliderFloat("Ambient Occlusion", &ui_ambientOcclusion, 0.0f, 1.0f);
+
+        ImGui::Separator();
+        ImGui::Text("Environment (A14 / Fog)");
+        ImGui::SliderFloat("Current Intensity", &ui_flowMapIntensity, 0.0f, 2.0f);
+
+        ImGui::Separator();
+        ImGui::Text("Submarine controls");
+        ImGui::Checkbox("Toggle Lights (F)", &ui_submarineLights);
+
+        ImGui::Separator();
+        ImGui::Text("Diagnostics");
         ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
         ImGui::Text("Use Mouse to look around, WASD to move.");
         ImGui::End();

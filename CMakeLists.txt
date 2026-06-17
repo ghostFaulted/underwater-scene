@@ -59,6 +59,12 @@ add_executable(UnderwaterScene
     src/SplinePath.h
     src/Shader.cpp
     src/Skybox.cpp
+    src/Mesh.cpp
+    src/Mesh.h
+    src/Model.cpp
+    src/Model.h
+    src/Raycaster.cpp
+    src/Raycaster.h
 )
 
 add_executable(SplinePathTest
