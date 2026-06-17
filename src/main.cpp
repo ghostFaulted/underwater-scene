@@ -84,77 +84,6 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
 	g_windowHeight = height;
 }
 
-unsigned int sphereVAO = 0;
-unsigned int indexCount;
-void renderSphere() {
-	if (sphereVAO == 0) {
-		glGenVertexArrays(1, &sphereVAO);
-		unsigned int vbo, ebo;
-		glGenBuffers(1, &vbo);
-		glGenBuffers(1, &ebo);
-
-		std::vector<glm::vec3> positions;
-		std::vector<glm::vec2> uv;
-		std::vector<glm::vec3> normals;
-		std::vector<unsigned int> indices;
-
-		const unsigned int X_SEGMENTS = 64;
-		const unsigned int Y_SEGMENTS = 64;
-		const float PI = 3.14159265359f;
-		for (unsigned int x = 0; x <= X_SEGMENTS; ++x) {
-			for (unsigned int y = 0; y <= Y_SEGMENTS; ++y) {
-				float xSegment = (float)x / (float)X_SEGMENTS;
-				float ySegment = (float)y / (float)Y_SEGMENTS;
-				float xPos = std::cos(xSegment * 2.0f * PI) * std::sin(ySegment * PI);
-				float yPos = std::cos(ySegment * PI);
-				float zPos = std::sin(xSegment * 2.0f * PI) * std::sin(ySegment * PI);
-
-				positions.push_back(glm::vec3(xPos, yPos, zPos));
-				uv.push_back(glm::vec2(xSegment, ySegment));
-				normals.push_back(glm::vec3(xPos, yPos, zPos));
-			}
-		}
-
-		bool oddRow = false;
-		for (unsigned int y = 0; y < Y_SEGMENTS; ++y) {
-			if (!oddRow) {
-				for (unsigned int x = 0; x <= X_SEGMENTS; ++x) {
-					indices.push_back(y * (X_SEGMENTS + 1) + x);
-					indices.push_back((y + 1) * (X_SEGMENTS + 1) + x);
-				}
-			}
-			else {
-				for (int x = X_SEGMENTS; x >= 0; --x) {
-					indices.push_back((y + 1) * (X_SEGMENTS + 1) + x);
-					indices.push_back(y * (X_SEGMENTS + 1) + x);
-				}
-			}
-			oddRow = !oddRow;
-		}
-		indexCount = static_cast<unsigned int>(indices.size());
-
-		std::vector<float> data;
-		for (unsigned int i = 0; i < positions.size(); ++i) {
-			data.push_back(positions[i].x); data.push_back(positions[i].y); data.push_back(positions[i].z);
-			if (uv.size() > 0) { data.push_back(uv[i].x); data.push_back(uv[i].y); }
-			if (normals.size() > 0) { data.push_back(normals[i].x); data.push_back(normals[i].y); data.push_back(normals[i].z); }
-		}
-
-		glBindVertexArray(sphereVAO);
-		glBindBuffer(GL_ARRAY_BUFFER, vbo);
-		glBufferData(GL_ARRAY_BUFFER, data.size() * sizeof(float), &data[0], GL_STATIC_DRAW);
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-		glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), &indices[0], GL_STATIC_DRAW);
-
-		unsigned int stride = (3 + 2 + 3) * sizeof(float);
-		glEnableVertexAttribArray(0); glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void*)0);
-		glEnableVertexAttribArray(1); glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, stride, (void*)(3 * sizeof(float)));
-		glEnableVertexAttribArray(2); glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, stride, (void*)(5 * sizeof(float)));
-	}
-	glBindVertexArray(sphereVAO);
-	glDrawElements(GL_TRIANGLE_STRIP, indexCount, GL_UNSIGNED_INT, 0);
-}
-
 int main() {
 	if (!glfwInit()) return -1;
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
@@ -179,18 +108,20 @@ int main() {
 
 	Shader pbrShader("shaders/pbr.vert", "shaders/pbr.frag");
 	Shader skyboxShader("shaders/skybox.vert", "shaders/skybox.frag");
+	Shader shadowShader("shaders/shadow.vert", "shaders/shadow.frag"); 
 
 	std::vector<std::string> faces = {
 		"assets/skybox/uw_rt.jpg",
 		"assets/skybox/uw_lf.jpg",
-		"assets/skybox/uw_up.jpg", 
-		"assets/skybox/uw_dn.jpg", 
-		"assets/skybox/uw_bk.jpg", 
-		"assets/skybox/uw_ft.jpg"  
+		"assets/skybox/uw_up.jpg",
+		"assets/skybox/uw_dn.jpg",
+		"assets/skybox/uw_bk.jpg",
+		"assets/skybox/uw_ft.jpg"
 	};
 	Skybox skybox(faces);
 
 	Model submarine("assets/submarine/sub.obj");
+	Model seabed("assets/ocean_floor/ocean_floor.obj");
 
 	std::vector<glm::vec3> splinePoints = {
 		glm::vec3(-15.0f,  0.0f, -10.0f),
@@ -213,6 +144,27 @@ int main() {
 
 	auto lastFrameTime = static_cast<float>(glfwGetTime());
 
+	const unsigned int SHADOW_WIDTH = 2048, SHADOW_HEIGHT = 2048;
+	unsigned int depthMapFBO;
+	glGenFramebuffers(1, &depthMapFBO);
+
+	unsigned int depthMap;
+	glGenTextures(1, &depthMap);
+	glBindTexture(GL_TEXTURE_2D, depthMap);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, SHADOW_WIDTH, SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+	float borderColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
+	glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
+
+	glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthMap, 0);
+	glDrawBuffer(GL_NONE);
+	glReadBuffer(GL_NONE);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
 	while (!glfwWindowShouldClose(window)) {
 		const auto currentFrameTime = static_cast<float>(glfwGetTime());
 		const float deltaTime = currentFrameTime - lastFrameTime;
@@ -221,9 +173,6 @@ int main() {
 		if (g_cursorDisabled) {
 			g_camera.ProcessKeyboard(g_keyDown[GLFW_KEY_W], g_keyDown[GLFW_KEY_S], g_keyDown[GLFW_KEY_A], g_keyDown[GLFW_KEY_D], deltaTime);
 		}
-
-		glClearColor(0.05f, 0.1f, 0.15f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		ImGui_ImplOpenGL3_NewFrame();
 		ImGui_ImplGlfw_NewFrame();
@@ -240,7 +189,6 @@ int main() {
 		glm::mat4 origTransform = spline.GetTransform(t);
 		glm::vec3 position = glm::vec3(origTransform[3]);
 		glm::vec3 tangent = glm::vec3(origTransform[2]);
-
 		glm::vec3 forward = glm::normalize(glm::vec3(tangent.x, 0.0f, tangent.z));
 		glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
 		glm::vec3 right = glm::normalize(glm::cross(up, forward));
@@ -251,19 +199,44 @@ int main() {
 		modelMatrix[2] = glm::vec4(forward, 0.0f);
 		modelMatrix[3] = glm::vec4(position, 1.0f);
 
-		float correctAngle = 0.0f;
-		modelMatrix = glm::rotate(modelMatrix, glm::radians(correctAngle), glm::vec3(0.0f, 0.0f, 1.0f));
+		glm::mat4 floorMatrix(1.0f);
+		floorMatrix = glm::translate(floorMatrix, glm::vec3(0.0f, -15.0f, 0.0f));
+		floorMatrix = glm::scale(floorMatrix, glm::vec3(10.0f));
+
+		glm::vec3 lightPos = lightPositions[0]; 
+		glm::mat4 lightProjection = glm::ortho(-30.0f, 30.0f, -30.0f, 30.0f, 1.0f, 100.0f);
+		glm::mat4 lightView = glm::lookAt(lightPos, glm::vec3(0.0f), glm::vec3(0.0, 1.0, 0.0));
+		glm::mat4 lightSpaceMatrix = lightProjection * lightView;
+
+		shadowShader.use();
+		shadowShader.setMat4("lightSpaceMatrix", lightSpaceMatrix);
+
+		glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT); 
+		glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
+		glClear(GL_DEPTH_BUFFER_BIT); 
+
+		shadowShader.setMat4("model", modelMatrix);
+		submarine.Draw(shadowShader);
+
+		shadowShader.setMat4("model", floorMatrix);
+		seabed.Draw(shadowShader);
+
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+
+		glViewport(0, 0, g_windowWidth, g_windowHeight); 
+		glClearColor(0.05f, 0.1f, 0.15f, 1.0f);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		pbrShader.use();
 		pbrShader.setMat4("projection", projection);
 		pbrShader.setMat4("view", view);
-		pbrShader.setMat4("model", modelMatrix);
 		pbrShader.setVec3("camPos", cameraPos);
 
-		pbrShader.setVec3("albedo", ui_albedoColor);
-		pbrShader.setFloat("ao", ui_ambientOcclusion);
-		pbrShader.setFloat("metallic", ui_metallic);
-		pbrShader.setFloat("roughness", ui_roughness);
+		pbrShader.setMat4("lightSpaceMatrix", lightSpaceMatrix);
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, depthMap);
+		pbrShader.setInt("shadowMap", 1);
 
 		for (unsigned int i = 0; i < 4; ++i) {
 			pbrShader.setVec3("lightPositions[" + std::to_string(i) + "]", lightPositions[i]);
@@ -271,7 +244,18 @@ int main() {
 			pbrShader.setVec3("lightColors[" + std::to_string(i) + "]", currentLightColor);
 		}
 
+		pbrShader.setMat4("model", modelMatrix);
+		pbrShader.setVec3("albedo", ui_albedoColor);
+		pbrShader.setFloat("ao", ui_ambientOcclusion);
+		pbrShader.setFloat("metallic", ui_metallic);
+		pbrShader.setFloat("roughness", ui_roughness);
 		submarine.Draw(pbrShader);
+
+		pbrShader.setMat4("model", floorMatrix);
+		pbrShader.setVec3("albedo", glm::vec3(0.76f, 0.69f, 0.50f));
+		pbrShader.setFloat("metallic", 0.0f);
+		pbrShader.setFloat("roughness", 0.9f);
+		seabed.Draw(pbrShader);
 
 		skyboxShader.use();
 		skyboxShader.setMat4("view", view);
@@ -279,27 +263,22 @@ int main() {
 		skybox.Draw(skyboxShader);
 
 		ImGui::Begin("GRK: Interactive U-Boat Diorama");
-
 		ImGui::Separator();
 		ImGui::Text("System Controls");
 		ImGui::Text("Press 'C' to toggle Cursor lock.");
 		ImGui::Text("Cursor state: %s", g_cursorDisabled ? "LOCKED (Camera)" : "FREE (UI Active)");
-
 		ImGui::Separator();
 		ImGui::Text("Submarine PBR Materials");
 		ImGui::ColorEdit3("Steel Albedo", &ui_albedoColor[0]);
 		ImGui::SliderFloat("Metallic (Metalness)", &ui_metallic, 0.0f, 1.0f);
 		ImGui::SliderFloat("Roughness", &ui_roughness, 0.0f, 1.0f);
 		ImGui::SliderFloat("Ambient Occlusion", &ui_ambientOcclusion, 0.0f, 1.0f);
-
 		ImGui::Separator();
 		ImGui::Text("Environment (A14 / Fog)");
 		ImGui::SliderFloat("Current Intensity", &ui_flowMapIntensity, 0.0f, 2.0f);
-
 		ImGui::Separator();
 		ImGui::Text("Submarine controls");
 		ImGui::Checkbox("Toggle Lights (F)", &ui_submarineLights);
-
 		ImGui::Separator();
 		ImGui::Text("Diagnostics");
 		ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
