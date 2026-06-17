@@ -1,4 +1,4 @@
-#include "SplinePath.h"
+#include "../include/SplinePath.h"
 
 #include <cassert>
 #include <cmath>
@@ -34,12 +34,12 @@ namespace {
             const float dotUF = std::abs(glm::dot(up, forward));
 
             std::cout
-                    << "  t=" << t
-                    << " pos=(" << position.x << ", " << position.y << ", " << position.z << ")"
-                    << " | dot(R,U)=" << dotRU
-                    << " dot(R,F)=" << dotRF
-                    << " dot(U,F)=" << dotUF
-                    << std::endl;
+                << "  t=" << t
+                << " pos=(" << position.x << ", " << position.y << ", " << position.z << ")"
+                << " | dot(R,U)=" << dotRU
+                << " dot(R,F)=" << dotRF
+                << " dot(U,F)=" << dotUF
+                << std::endl;
 
             assert(dotRU < 1e-3f);
             assert(dotRF < 1e-3f);

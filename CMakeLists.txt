@@ -86,5 +86,6 @@ target_link_libraries(UnderwaterScene PRIVATE
 
 target_link_libraries(SplinePathTest PRIVATE glm)
 
+
 file(COPY ${CMAKE_SOURCE_DIR}/shaders DESTINATION ${CMAKE_BINARY_DIR})
 file(COPY ${CMAKE_SOURCE_DIR}/assets DESTINATION ${CMAKE_BINARY_DIR})

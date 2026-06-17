@@ -1,4 +1,4 @@
-#include "SplinePath.h"
+#include "../include/SplinePath.h"
 
 #include <algorithm>
 #include <cassert>
@@ -17,7 +17,7 @@ namespace {
         return std::clamp(value, -1.0f, 1.0f);
     }
 
-    glm::vec3 NormalizeOrFallback(const glm::vec3 &value, const glm::vec3 &fallback) {
+    glm::vec3 NormalizeOrFallback(const glm::vec3& value, const glm::vec3& fallback) {
         const float valueLengthSquared = glm::dot(value, value);
         if (valueLengthSquared > kEpsilon) {
             return value * (1.0f / std::sqrt(valueLengthSquared));
@@ -28,10 +28,10 @@ namespace {
             return fallback * (1.0f / std::sqrt(fallbackLengthSquared));
         }
 
-        return {1.0f, 0.0f, 0.0f};
+        return { 1.0f, 0.0f, 0.0f };
     }
 
-    glm::vec3 RotateAroundAxis(const glm::vec3 &vector, glm::vec3 axis, const float angle) {
+    glm::vec3 RotateAroundAxis(const glm::vec3& vector, glm::vec3 axis, const float angle) {
         axis = NormalizeOrFallback(axis, glm::vec3(0.0f, 1.0f, 0.0f));
 
         const float cosine = std::cos(angle);
@@ -41,7 +41,7 @@ namespace {
     }
 }
 
-SplinePath::SplinePath(const std::vector<glm::vec3> &controlPoints) {
+SplinePath::SplinePath(const std::vector<glm::vec3>& controlPoints) {
     if (controlPoints.size() < 4) {
         throw std::invalid_argument("At least 4 control points are required for a Catmull-Rom spline.");
     }
@@ -79,7 +79,7 @@ void SplinePath::BuildFrames() {
             controlPoints[segmentIndex + 3],
             localT
         );
-    };
+        };
 
     for (std::size_t i = 0; i < sampleCount; ++i) {
         const float t = static_cast<float>(i) * sampleStep;
@@ -88,13 +88,13 @@ void SplinePath::BuildFrames() {
 
         if (!hasPreviousFrame) {
             const glm::vec3 helperAxis = std::abs(tangent.y) < 0.9f
-                                             ? glm::vec3(0.0f, 1.0f, 0.0f)
-                                             : glm::vec3(1.0f, 0.0f, 0.0f);
+                ? glm::vec3(0.0f, 1.0f, 0.0f)
+                : glm::vec3(1.0f, 0.0f, 0.0f);
 
             glm::vec3 normal = NormalizeOrFallback(glm::cross(helperAxis, tangent), glm::vec3(0.0f, 1.0f, 0.0f));
             glm::vec3 binormal = NormalizeOrFallback(glm::cross(tangent, normal), glm::vec3(1.0f, 0.0f, 0.0f));
 
-            frames.push_back(Frame{t, position, tangent, normal, binormal});
+            frames.push_back(Frame{ t, position, tangent, normal, binormal });
             previousTangent = tangent;
             previousNormal = normal;
             previousBinormal = binormal;
@@ -122,7 +122,7 @@ void SplinePath::BuildFrames() {
             binormal = -binormal;
         }
 
-        frames.push_back(Frame{t, position, tangent, normal, binormal});
+        frames.push_back(Frame{ t, position, tangent, normal, binormal });
         previousTangent = tangent;
         previousNormal = normal;
         previousBinormal = binormal;
@@ -130,7 +130,7 @@ void SplinePath::BuildFrames() {
 }
 
 void SplinePath::ValidateFrames() const {
-    for (const Frame &frame: frames) {
+    for (const Frame& frame : frames) {
         const float dotTN = glm::dot(frame.tangent, frame.normal);
         const float dotTB = glm::dot(frame.tangent, frame.binormal);
         const float dotNB = glm::dot(frame.normal, frame.binormal);
@@ -139,14 +139,14 @@ void SplinePath::ValidateFrames() const {
         const float lenB = glm::length(frame.binormal);
 
         std::cerr
-                << "[SplinePath] t=" << frame.t
-                << " | dot(T,N)=" << dotTN
-                << " dot(T,B)=" << dotTB
-                << " dot(N,B)=" << dotNB
-                << " | |T|=" << lenT
-                << " |N|=" << lenN
-                << " |B|=" << lenB
-                << std::endl;
+            << "[SplinePath] t=" << frame.t
+            << " | dot(T,N)=" << dotTN
+            << " dot(T,B)=" << dotTB
+            << " dot(N,B)=" << dotNB
+            << " | |T|=" << lenT
+            << " |N|=" << lenN
+            << " |B|=" << lenB
+            << std::endl;
 
         assert(std::abs(dotTN) < kOrthogonalityTolerance);
         assert(std::abs(dotTB) < kOrthogonalityTolerance);
@@ -185,8 +185,8 @@ glm::mat4 SplinePath::GetTransform(const float t) const {
     const std::size_t rightIndex = std::min(leftIndex + 1, frames.size() - 1);
     const float alpha = scaledT - static_cast<float>(leftIndex);
 
-    const Frame &left = frames[leftIndex];
-    const Frame &right = frames[rightIndex];
+    const Frame& left = frames[leftIndex];
+    const Frame& right = frames[rightIndex];
 
     const glm::vec3 position = glm::mix(left.position, right.position, alpha);
 
@@ -211,25 +211,25 @@ glm::mat4 SplinePath::GetTransform(const float t) const {
 }
 
 glm::vec3 SplinePath::CatmullRom(const glm::vec3 p0, const glm::vec3 p1, const glm::vec3 p2, const glm::vec3 p3,
-                                 const float t) {
+    const float t) {
     const float t2 = t * t;
     const float t3 = t2 * t;
 
     return 0.5f * (
-               (2.0f * p1) +
-               (-p0 + p2) * t +
-               (2.0f * p0 - 5.0f * p1 + 4.0f * p2 - p3) * t2 +
-               (-p0 + 3.0f * p1 - 3.0f * p2 + p3) * t3
-           );
+        (2.0f * p1) +
+        (-p0 + p2) * t +
+        (2.0f * p0 - 5.0f * p1 + 4.0f * p2 - p3) * t2 +
+        (-p0 + 3.0f * p1 - 3.0f * p2 + p3) * t3
+        );
 }
 
 glm::vec3 SplinePath::CatmullRomTangent(const glm::vec3 p0, const glm::vec3 p1, const glm::vec3 p2, const glm::vec3 p3,
-                                        const float t) {
+    const float t) {
     const float t2 = t * t;
 
     return 0.5f * (
-               (-p0 + p2) +
-               2.0f * (2.0f * p0 - 5.0f * p1 + 4.0f * p2 - p3) * t +
-               3.0f * (-p0 + 3.0f * p1 - 3.0f * p2 + p3) * t2
-           );
+        (-p0 + p2) +
+        2.0f * (2.0f * p0 - 5.0f * p1 + 4.0f * p2 - p3) * t +
+        3.0f * (-p0 + 3.0f * p1 - 3.0f * p2 + p3) * t2
+        );
 }

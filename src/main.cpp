@@ -7,6 +7,7 @@
 #include <imgui_impl_opengl3.h>
 #include <iostream>
 #include <vector>
+#include <stb_image.h> 
 
 #include "Camera.h"
 #include "SplinePath.h"
@@ -84,6 +85,34 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
 	g_windowHeight = height;
 }
 
+unsigned int loadTexture(const char* path) {
+	unsigned int textureID;
+	glGenTextures(1, &textureID);
+
+	int width, height, nrComponents;
+	unsigned char* data = stbi_load(path, &width, &height, &nrComponents, 4);
+	if (data) {
+		GLenum format = GL_RGBA;
+
+		glBindTexture(GL_TEXTURE_2D, textureID);
+		glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
+		glGenerateMipmap(GL_TEXTURE_2D);
+
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+		stbi_image_free(data);
+	}
+	else {
+		std::cout << "Texture failed to load at path: " << path << std::endl;
+		stbi_image_free(data);
+	}
+
+	return textureID;
+}
+
 int main() {
 	if (!glfwInit()) return -1;
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
@@ -108,7 +137,7 @@ int main() {
 
 	Shader pbrShader("shaders/pbr.vert", "shaders/pbr.frag");
 	Shader skyboxShader("shaders/skybox.vert", "shaders/skybox.frag");
-	Shader shadowShader("shaders/shadow.vert", "shaders/shadow.frag"); 
+	Shader shadowShader("shaders/shadow.vert", "shaders/shadow.frag");
 
 	std::vector<std::string> faces = {
 		"assets/skybox/uw_rt.jpg",
@@ -122,6 +151,10 @@ int main() {
 
 	Model submarine("assets/submarine/sub.obj");
 	Model seabed("assets/ocean_floor/ocean_floor.obj");
+
+	unsigned int subAlbedoTex = loadTexture("assets/submarine/ger_sub_diffuse.png");
+	unsigned int seabedAlbedoTex = loadTexture("assets/ocean_floor/model.jpg");
+	unsigned int seabedNormalMap = loadTexture("assets/ocean_floor/seabed_normal.png");
 
 	std::vector<glm::vec3> splinePoints = {
 		glm::vec3(-15.0f,  0.0f, -10.0f),
@@ -203,7 +236,7 @@ int main() {
 		floorMatrix = glm::translate(floorMatrix, glm::vec3(0.0f, -15.0f, 0.0f));
 		floorMatrix = glm::scale(floorMatrix, glm::vec3(10.0f));
 
-		glm::vec3 lightPos = lightPositions[0]; 
+		glm::vec3 lightPos = lightPositions[0];
 		glm::mat4 lightProjection = glm::ortho(-30.0f, 30.0f, -30.0f, 30.0f, 1.0f, 100.0f);
 		glm::mat4 lightView = glm::lookAt(lightPos, glm::vec3(0.0f), glm::vec3(0.0, 1.0, 0.0));
 		glm::mat4 lightSpaceMatrix = lightProjection * lightView;
@@ -211,9 +244,9 @@ int main() {
 		shadowShader.use();
 		shadowShader.setMat4("lightSpaceMatrix", lightSpaceMatrix);
 
-		glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT); 
+		glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
 		glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
-		glClear(GL_DEPTH_BUFFER_BIT); 
+		glClear(GL_DEPTH_BUFFER_BIT);
 
 		shadowShader.setMat4("model", modelMatrix);
 		submarine.Draw(shadowShader);
@@ -223,8 +256,7 @@ int main() {
 
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-
-		glViewport(0, 0, g_windowWidth, g_windowHeight); 
+		glViewport(0, 0, g_windowWidth, g_windowHeight);
 		glClearColor(0.05f, 0.1f, 0.15f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -245,17 +277,38 @@ int main() {
 		}
 
 		pbrShader.setMat4("model", modelMatrix);
-		pbrShader.setVec3("albedo", ui_albedoColor);
 		pbrShader.setFloat("ao", ui_ambientOcclusion);
 		pbrShader.setFloat("metallic", ui_metallic);
 		pbrShader.setFloat("roughness", ui_roughness);
+
+		pbrShader.setBool("useNormalMap", false); 
+
+		pbrShader.setBool("useAlbedoMap", true);
+		glActiveTexture(GL_TEXTURE3);
+		glBindTexture(GL_TEXTURE_2D, subAlbedoTex);
+		pbrShader.setInt("albedoMap", 3);
+
 		submarine.Draw(pbrShader);
 
 		pbrShader.setMat4("model", floorMatrix);
-		pbrShader.setVec3("albedo", glm::vec3(0.76f, 0.69f, 0.50f));
 		pbrShader.setFloat("metallic", 0.0f);
 		pbrShader.setFloat("roughness", 0.9f);
+		pbrShader.setFloat("ao", 1.0f);
+
+		pbrShader.setBool("useAlbedoMap", true);
+		glActiveTexture(GL_TEXTURE3);
+		glBindTexture(GL_TEXTURE_2D, seabedAlbedoTex);
+		pbrShader.setInt("albedoMap", 3);
+
+		pbrShader.setBool("useNormalMap", true);
+		glActiveTexture(GL_TEXTURE2);
+		glBindTexture(GL_TEXTURE_2D, seabedNormalMap);
+		pbrShader.setInt("normalMap", 2);
+
 		seabed.Draw(pbrShader);
+
+		pbrShader.setBool("useAlbedoMap", false);
+		pbrShader.setBool("useNormalMap", false);
 
 		skyboxShader.use();
 		skyboxShader.setMat4("view", view);

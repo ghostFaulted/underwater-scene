@@ -54,6 +54,16 @@ Mesh Model::processMesh(aiMesh* mesh, const aiScene* scene) {
         else {
             vertex.TexCoords = glm::vec2(0.0f);
         }
+
+        if (mesh->HasTangentsAndBitangents()) {
+            vertex.Tangent = glm::vec3(mesh->mTangents[i].x, mesh->mTangents[i].y, mesh->mTangents[i].z);
+            vertex.Bitangent = glm::vec3(mesh->mBitangents[i].x, mesh->mBitangents[i].y, mesh->mBitangents[i].z);
+        }
+        else {
+            vertex.Tangent = glm::vec3(0.0f);
+            vertex.Bitangent = glm::vec3(0.0f);
+        }
+
         vertices.push_back(vertex);
     }
 
