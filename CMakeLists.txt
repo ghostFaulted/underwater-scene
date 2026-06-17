@@ -54,17 +54,17 @@ add_executable(UnderwaterScene
     src/stb_image.cpp 
     src/glad.c
     src/Camera.cpp
-    src/Camera.h
+    "include/Camera.h"
     src/SplinePath.cpp
-    src/SplinePath.h
+    "include/SplinePath.h"
     src/Shader.cpp
     src/Skybox.cpp
     src/Mesh.cpp
-    src/Mesh.h
+    "include/Mesh.h"
     src/Model.cpp
-    src/Model.h
+    "include/Model.h"
     src/Raycaster.cpp
-    src/Raycaster.h
+    "include/Raycaster.h"
 )
 
 add_executable(SplinePathTest
@@ -87,3 +87,4 @@ target_link_libraries(UnderwaterScene PRIVATE
 target_link_libraries(SplinePathTest PRIVATE glm)
 
 file(COPY ${CMAKE_SOURCE_DIR}/shaders DESTINATION ${CMAKE_BINARY_DIR})
+file(COPY ${CMAKE_SOURCE_DIR}/assets DESTINATION ${CMAKE_BINARY_DIR})
