@@ -60,6 +60,7 @@ unsigned int Skybox::loadCubemap(const std::vector<std::string>& faces) {
             stbi_image_free(data);
         }
         else {
+            std::cout << "ERROR::SKYBOX::Failed to load texture at: " << faces[i] << std::endl;
             glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, dummyColor);
         }
     }

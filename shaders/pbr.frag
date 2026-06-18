@@ -4,6 +4,14 @@ out vec4 FragColor;
 in vec2 TexCoords;
 in vec3 WorldPos;
 in vec3 Normal;
+in vec4 FragPosLightSpace; 
+
+in mat3 TBN; 
+uniform sampler2D normalMap; 
+uniform bool useNormalMap;  
+
+uniform sampler2D albedoMap; 
+uniform bool useAlbedoMap;
 
 uniform vec3 albedo;
 uniform float metallic;
@@ -13,6 +21,8 @@ uniform float ao;
 uniform vec3 lightPositions[4];
 uniform vec3 lightColors[4];
 uniform vec3 camPos;
+
+uniform sampler2D shadowMap; 
 
 const float PI = 3.14159265359;
 
@@ -47,12 +57,48 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0) {
     return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
 
+float ShadowCalculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir)
+{
+    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
+    projCoords = projCoords * 0.5 + 0.5;
+    if(projCoords.z > 1.0) return 0.0;
+    float currentDepth = projCoords.z;
+    float bias = max(0.05 * (1.0 - dot(normal, lightDir)), 0.005);
+    
+    float shadow = 0.0;
+    vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
+    for(int x = -1; x <= 1; ++x)
+    {
+        for(int y = -1; y <= 1; ++y)
+        {
+            float pcfDepth = texture(shadowMap, projCoords.xy + vec2(x, y) * texelSize).r; 
+            shadow += currentDepth - bias > pcfDepth  ? 1.0 : 0.0;        
+        }    
+    }
+    shadow /= 9.0;
+    return shadow;
+}
+
 void main() {		
-    vec3 N = normalize(Normal);
+    vec3 currentAlbedo = albedo;
+    if (useAlbedoMap) {
+        currentAlbedo = texture(albedoMap, TexCoords).rgb;
+        currentAlbedo = pow(currentAlbedo, vec3(2.2)); 
+    }
+
+    vec3 N;
+    if (useNormalMap) {
+        N = texture(normalMap, TexCoords).rgb;
+        N = normalize(N * 2.0 - 1.0);
+        N = normalize(TBN * N);
+    } else {
+        N = normalize(TBN[2]); 
+    }
+
     vec3 V = normalize(camPos - WorldPos);
 
     vec3 F0 = vec3(0.04); 
-    F0 = mix(F0, albedo, metallic);
+    F0 = mix(F0, currentAlbedo, metallic);
 
     vec3 Lo = vec3(0.0);
     for(int i = 0; i < 4; ++i) 
@@ -75,11 +121,17 @@ void main() {
         vec3 kD = vec3(1.0) - kS;
         kD *= 1.0 - metallic;	  
 
-        float NdotL = max(dot(N, L), 0.0);        
-        Lo += (kD * albedo / PI + specular) * radiance * NdotL;
+        float NdotL = max(dot(N, L), 0.0);   
+        
+        float shadow = 0.0;
+        if(i == 0) { 
+            shadow = ShadowCalculation(FragPosLightSpace, N, L);
+        }
+
+        Lo += (1.0 - shadow) * (kD * currentAlbedo / PI + specular) * radiance * NdotL;
     }   
     
-    vec3 ambient = vec3(0.03) * albedo * ao;
+    vec3 ambient = vec3(0.03) * currentAlbedo * ao;
     vec3 color = ambient + Lo;
 
     color = color / (color + vec3(1.0));
