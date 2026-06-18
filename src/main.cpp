@@ -443,19 +443,14 @@ int main() {
 		pbrShader.setBool("useAlbedoMap", false);
 		pbrShader.setBool("useNormalMap", false);
 
-        // Calculate normalized time for submarine movement along the spline [0, 1]
         float splineTime = fmodf(lastFrameTime / 20.0f, 1.0f);
 
         glm::mat4 model = glm::mat4(1.0f);
 
-        // Get transform from spline (position + PTF basis)
         model *= submarinePath.GetTransform(splineTime);
 
-        // Rotate submarine model to align with spline tangent
-        // If torpedo model looks along -Z, rotate -90 degrees around Y
-        model = glm::rotate(model, glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        model = glm::rotate(model, glm::radians(180.0f), glm::vec3(1.0f, 0.0f, 0.0f));
 
-        // Scale submarine
         model = glm::scale(model, glm::vec3(1.0f));
 
         pbrShader.setFloat("metallic", 0.3f);
