@@ -41,12 +41,13 @@ namespace {
     }
 }
 
-SplinePath::SplinePath(const std::vector<glm::vec3> &controlPoints) {
+SplinePath::SplinePath(const std::vector<glm::vec3> &controlPoints, const bool closedLoop) {
     if (controlPoints.size() < 4) {
         throw std::invalid_argument("At least 4 control points are required for a Catmull-Rom spline.");
     }
 
     this->controlPoints = controlPoints;
+    this->closedLoop = closedLoop;
     BuildFrames();
 
 #ifndef NDEBUG
@@ -54,8 +55,52 @@ SplinePath::SplinePath(const std::vector<glm::vec3> &controlPoints) {
 #endif
 }
 
+std::size_t SplinePath::GetSegmentCount() const {
+    return closedLoop ? controlPoints.size() : controlPoints.size() - 3;
+}
+
+glm::vec3 SplinePath::SamplePositionOnSegment(const std::size_t segmentIndex, const float localT) const {
+    if (closedLoop) {
+        const auto n = static_cast<int>(controlPoints.size());
+        const auto i = static_cast<int>(segmentIndex) % n;
+        const glm::vec3 &p0 = controlPoints[(i - 1 + n) % n];
+        const glm::vec3 &p1 = controlPoints[i];
+        const glm::vec3 &p2 = controlPoints[(i + 1) % n];
+        const glm::vec3 &p3 = controlPoints[(i + 2) % n];
+        return CatmullRom(p0, p1, p2, p3, localT);
+    }
+
+    return CatmullRom(
+        controlPoints[segmentIndex],
+        controlPoints[segmentIndex + 1],
+        controlPoints[segmentIndex + 2],
+        controlPoints[segmentIndex + 3],
+        localT
+    );
+}
+
+glm::vec3 SplinePath::SampleTangentOnSegment(const std::size_t segmentIndex, const float localT) const {
+    if (closedLoop) {
+        const auto n = static_cast<int>(controlPoints.size());
+        const auto i = static_cast<int>(segmentIndex) % n;
+        const glm::vec3 &p0 = controlPoints[(i - 1 + n) % n];
+        const glm::vec3 &p1 = controlPoints[i];
+        const glm::vec3 &p2 = controlPoints[(i + 1) % n];
+        const glm::vec3 &p3 = controlPoints[(i + 2) % n];
+        return CatmullRomTangent(p0, p1, p2, p3, localT);
+    }
+
+    return CatmullRomTangent(
+        controlPoints[segmentIndex],
+        controlPoints[segmentIndex + 1],
+        controlPoints[segmentIndex + 2],
+        controlPoints[segmentIndex + 3],
+        localT
+    );
+}
+
 void SplinePath::BuildFrames() {
-    const std::size_t segments = controlPoints.size() - 3;
+    const std::size_t segments = GetSegmentCount();
     const std::size_t sampleCount = std::max<std::size_t>(2, segments * kSamplesPerSegment + 1);
 
     sampleStep = 1.0f / static_cast<float>(sampleCount - 1);
@@ -72,13 +117,7 @@ void SplinePath::BuildFrames() {
         const int segmentIndex = std::min(static_cast<int>(std::floor(scaledT)), static_cast<int>(segments) - 1);
         const float localT = scaledT - static_cast<float>(segmentIndex);
 
-        return CatmullRomTangent(
-            controlPoints[segmentIndex],
-            controlPoints[segmentIndex + 1],
-            controlPoints[segmentIndex + 2],
-            controlPoints[segmentIndex + 3],
-            localT
-        );
+        return SampleTangentOnSegment(static_cast<std::size_t>(segmentIndex), localT);
     };
 
     for (std::size_t i = 0; i < sampleCount; ++i) {
@@ -158,20 +197,18 @@ void SplinePath::ValidateFrames() const {
 }
 
 glm::vec3 SplinePath::GetPosition(const float t) const {
-    const std::size_t segments = controlPoints.size() - 3;
-    const float clampedT = std::clamp(t, 0.0f, 1.0f);
-    const float scaledT = clampedT * static_cast<float>(segments);
+    const std::size_t segments = GetSegmentCount();
+    float normalizedT = std::clamp(t, 0.0f, 1.0f);
+    if (closedLoop) {
+        normalizedT = t - std::floor(t);
+    }
+
+    const float scaledT = normalizedT * static_cast<float>(segments);
 
     const int segmentIndex = std::min(static_cast<int>(std::floor(scaledT)), static_cast<int>(segments) - 1);
     const float localT = scaledT - static_cast<float>(segmentIndex);
 
-    return CatmullRom(
-        controlPoints[segmentIndex],
-        controlPoints[segmentIndex + 1],
-        controlPoints[segmentIndex + 2],
-        controlPoints[segmentIndex + 3],
-        localT
-    );
+    return SamplePositionOnSegment(static_cast<std::size_t>(segmentIndex), localT);
 }
 
 glm::mat4 SplinePath::GetTransform(const float t) const {
@@ -179,10 +216,17 @@ glm::mat4 SplinePath::GetTransform(const float t) const {
         return glm::mat4(1.0f);
     }
 
-    const float clampedT = std::clamp(t, 0.0f, 1.0f);
-    const float scaledT = clampedT * static_cast<float>(frames.size() - 1);
+    float normalizedT = std::clamp(t, 0.0f, 1.0f);
+    if (closedLoop) {
+        normalizedT = t - std::floor(t);
+    }
+
+    const float scaledT = normalizedT * static_cast<float>(frames.size() - 1);
     const auto leftIndex = static_cast<std::size_t>(std::floor(scaledT));
-    const std::size_t rightIndex = std::min(leftIndex + 1, frames.size() - 1);
+    std::size_t rightIndex = std::min(leftIndex + 1, frames.size() - 1);
+    if (closedLoop && leftIndex == frames.size() - 1) {
+        rightIndex = 0;
+    }
     const float alpha = scaledT - static_cast<float>(leftIndex);
 
     const Frame &left = frames[leftIndex];
