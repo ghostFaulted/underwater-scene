@@ -51,11 +51,18 @@ target_link_libraries(imgui PUBLIC glfw)
 
 add_executable(UnderwaterScene 
     src/main.cpp
-    src/stb_image.cpp 
+    src/AppCallbacks.cpp
+    src/SceneResources.cpp
+    src/SceneRenderer.cpp
+    src/stb_image.cpp
     src/glad.c
     src/Camera.cpp
+    "include/AppCallbacks.h"
+    "include/AppState.h"
     "include/Camera.h"
     src/SplinePath.cpp
+    "include/SceneRenderer.h"
+    "include/SceneResources.h"
     "include/SplinePath.h"
     src/Shader.cpp
     src/Skybox.cpp
