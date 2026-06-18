@@ -7,13 +7,16 @@
 #include <imgui_impl_opengl3.h>
 #include <iostream>
 #include <vector>
-#include <stb_image.h> 
+#include <stb_image.h>
 
 #include "Camera.h"
-#include "SplinePath.h"
-#include "Shader.h" 
-#include "Skybox.h"
 #include "Model.h"
+#include "SplinePath.h"
+#include "Shader.h"
+#include "Skybox.h"
+
+#include <filesystem>
+#include <glm/gtx/quaternion.hpp>
 
 namespace {
 	Camera g_camera(glm::vec3(0.0f, 5.0f, 25.0f));
@@ -54,7 +57,8 @@ namespace {
 	}
 
 	void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
-		(void)scancode; (void)mods;
+		(void)scancode;
+		(void)mods;
 		if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
 			glfwSetWindowShouldClose(window, true);
 
@@ -113,14 +117,43 @@ unsigned int loadTexture(const char* path) {
 	return textureID;
 }
 
+std::vector<glm::vec3> GenerateControlPoints() {
+	std::vector<glm::vec3> controlPoints = {
+		{0.0f, -2.0f, 0.0f},
+		{5.0f, -1.0f, -5.0f},
+		{10.0f, -4.0f, -10.0f},
+		{15.0f, -8.0f, -15.0f},
+		{20.0f, -12.0f, -10.0f},
+		{25.0f, -15.0f, 0.0f},
+		{20.0f, -12.0f, 10.0f},
+		{10.0f, -6.0f, 20.0f},
+		{0.0f, -2.0f, 25.0f},
+		{-10.0f, -5.0f, 20.0f},
+		{-20.0f, -10.0f, 10.0f},
+		{-25.0f, -14.0f, 0.0f},
+		{-20.0f, -10.0f, -10.0f},
+		{-10.0f, -4.0f, -20.0f},
+		{0.0f, 0.0f, -25.0f},
+		{10.0f, 3.0f, -15.0f},
+		{15.0f, 6.0f, -5.0f},
+		{10.0f, 4.0f, 5.0f},
+		{5.0f, 1.0f, 8.0f},
+		{2.0f, -1.0f, 4.0f}
+	};
+	return controlPoints;
+}
+
 int main() {
 	if (!glfwInit()) return -1;
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-	GLFWwindow* window = glfwCreateWindow(1280, 720, "GRK: U-Boat Diorama", nullptr, nullptr);
-	if (!window) { glfwTerminate(); return -1; }
+	GLFWwindow* window = glfwCreateWindow(1280, 720, "GRK: PBR + Camera", nullptr, nullptr);
+	if (!window) {
+		glfwTerminate();
+		return -1;
+	}
 
 	glfwMakeContextCurrent(window);
 	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
@@ -135,9 +168,29 @@ int main() {
 	ImGui_ImplGlfw_InitForOpenGL(window, true);
 	ImGui_ImplOpenGL3_Init("#version 330 core");
 
-	Shader pbrShader("shaders/pbr.vert", "shaders/pbr.frag");
-	Shader skyboxShader("shaders/skybox.vert", "shaders/skybox.frag");
-	Shader shadowShader("shaders/shadow.vert", "shaders/shadow.frag");
+	const auto resolveShaderPath = [](const std::string& relPath) {
+		if (std::filesystem::exists(relPath)) return relPath;
+		const std::string parentPath = "../" + relPath;
+		if (std::filesystem::exists(parentPath)) return parentPath;
+		return relPath;
+		};
+
+	const std::string pbrVertPath = resolveShaderPath("shaders/pbr.vert");
+	const std::string pbrFragPath = resolveShaderPath("shaders/pbr.frag");
+	const std::string skyVertPath = resolveShaderPath("shaders/skybox.vert");
+	const std::string skyFragPath = resolveShaderPath("shaders/skybox.frag");
+	const std::string lineVertPath = resolveShaderPath("shaders/lines.vert");
+	const std::string lineFragPath = resolveShaderPath("shaders/lines.frag");
+
+	Shader pbrShader(pbrVertPath.c_str(), pbrFragPath.c_str());
+	Shader skyboxShader(skyVertPath.c_str(), skyFragPath.c_str());
+	Shader linesShader(lineVertPath.c_str(), lineFragPath.c_str());
+
+	const std::string shadowVertPath = resolveShaderPath("shaders/shadow.vert");
+	const std::string shadowFragPath = resolveShaderPath("shaders/shadow.frag");
+	Shader shadowShader(shadowVertPath.c_str(), shadowFragPath.c_str());
+
+	std::cout << "[DEBUG] Shaders loaded successfully" << std::endl;
 
 	std::vector<std::string> faces = {
 		"assets/skybox/uw_rt.jpg",
@@ -156,17 +209,6 @@ int main() {
 	unsigned int seabedAlbedoTex = loadTexture("assets/ocean_floor/model.jpg");
 	unsigned int seabedNormalMap = loadTexture("assets/ocean_floor/seabed_normal.png");
 
-	std::vector<glm::vec3> splinePoints = {
-		glm::vec3(-15.0f,  0.0f, -10.0f),
-		glm::vec3(-10.0f,  3.0f,  10.0f),
-		glm::vec3(0.0f, -2.0f,  15.0f),
-		glm::vec3(10.0f,  4.0f,  10.0f),
-		glm::vec3(15.0f,  0.0f, -10.0f),
-		glm::vec3(0.0f, -4.0f, -20.0f),
-		glm::vec3(-15.0f,  0.0f, -10.0f)
-	};
-	SplinePath spline(splinePoints);
-
 	glm::vec3 lightPositions[] = {
 		glm::vec3(-20.0f,  20.0f, 20.0f), glm::vec3(20.0f,  20.0f, 20.0f),
 		glm::vec3(-20.0f, -20.0f, 20.0f), glm::vec3(20.0f, -20.0f, 20.0f)
@@ -174,6 +216,43 @@ int main() {
 	glm::vec3 lightColors[] = {
 		glm::vec3(500.0f), glm::vec3(500.0f), glm::vec3(500.0f), glm::vec3(500.0f)
 	};
+
+	std::cout << std::filesystem::current_path() << std::endl;
+
+	const bool useClosedTrajectory = true;
+	auto submarinePath = SplinePath(GenerateControlPoints(), useClosedTrajectory);
+
+	unsigned int pathVAO = 0, pathVBO = 0;
+	unsigned int pathLineCount = 0;
+
+	{
+		constexpr int splinePointsNumber = 500;
+		std::vector<glm::vec3> pathLineVertices;
+		pathLineVertices.reserve(splinePointsNumber);
+
+		for (float t = 0.0f; t <= 1.0f; t += 1.0f / splinePointsNumber) {
+			auto transform = submarinePath.GetTransform(t);
+			pathLineVertices.push_back(glm::vec3(transform[3]));
+		}
+
+		pathLineCount = pathLineVertices.size();
+
+		glGenVertexArrays(1, &pathVAO);
+		glGenBuffers(1, &pathVBO);
+
+		glBindVertexArray(pathVAO);
+		glBindBuffer(GL_ARRAY_BUFFER, pathVBO);
+		glBufferData(GL_ARRAY_BUFFER, pathLineVertices.size() * sizeof(glm::vec3), pathLineVertices.data(),
+			GL_STATIC_DRAW);
+
+		glEnableVertexAttribArray(0);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void*)0);
+
+		glBindBuffer(GL_ARRAY_BUFFER, 0);
+		glBindVertexArray(0);
+	}
+
+	std::cout << "[PATH] VAO=" << pathVAO << " vertices=" << pathLineCount << std::endl;
 
 	auto lastFrameTime = static_cast<float>(glfwGetTime());
 
@@ -216,21 +295,48 @@ int main() {
 		glm::mat4 view = g_camera.GetViewMatrix();
 		glm::vec3 cameraPos = g_camera.GetPosition();
 
-		float splineSpeed = 0.025f;
-		float t = glm::fract(currentFrameTime * splineSpeed);
+		// --- 1. ВЫЧИСЛЕНИЕ ПОЗИЦИИ И ПОВОРОТА БАТИСКАФА (ПЛАВУЧЕСТЬ ЛИФТА) ---
+		float splineTime = fmodf(currentFrameTime / 20.0f, 1.0f);
+		glm::vec3 currentPos = submarinePath.GetPosition(splineTime);
 
-		glm::mat4 origTransform = spline.GetTransform(t);
-		glm::vec3 position = glm::vec3(origTransform[3]);
-		glm::vec3 tangent = glm::vec3(origTransform[2]);
-		glm::vec3 forward = glm::normalize(glm::vec3(tangent.x, 0.0f, tangent.z));
-		glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
-		glm::vec3 right = glm::normalize(glm::cross(up, forward));
+		// Смотрим вперед по сплайну, чтобы узнать курс
+		float nextTime = fmodf(splineTime + 0.005f, 1.0f);
+		glm::vec3 nextPos = submarinePath.GetPosition(nextTime);
 
-		glm::mat4 modelMatrix(1.0f);
-		modelMatrix[0] = glm::vec4(right, 0.0f);
-		modelMatrix[1] = glm::vec4(up, 0.0f);
-		modelMatrix[2] = glm::vec4(forward, 0.0f);
-		modelMatrix[3] = glm::vec4(position, 1.0f);
+		// Реальное направление сплайна
+		glm::vec3 pathDir = glm::normalize(nextPos - currentPos);
+
+		// Выделяем только горизонтальное направление (чтобы поворачивать вправо/влево)
+		glm::vec3 flatDir = glm::vec3(pathDir.x, 0.0f, pathDir.z);
+		if (glm::length(flatDir) < 0.0001f) {
+			flatDir = glm::vec3(1.0f, 0.0f, 0.0f);
+		}
+		else {
+			flatDir = glm::normalize(flatDir);
+		}
+
+		// РЕШЕНИЕ ПРОБЛЕМЫ: Глушим вертикальный наклон.
+		// Умножаем реальный наклон сплайна (pathDir.y) на 0.15f.
+		// Теперь подлодка будет наклоняться МАКСИМУМ на 8-10 градусов при всплытии/погружении!
+		float dampenedPitch = pathDir.y * 0.15f;
+
+		// Новый "сглаженный" вектор направления
+		glm::vec3 forward = glm::normalize(glm::vec3(flatDir.x, dampenedPitch, flatDir.z));
+
+		// Строим матрицу вращения
+		glm::vec3 worldUp = glm::vec3(0.0f, 1.0f, 0.0f);
+		glm::vec3 right = glm::normalize(glm::cross(worldUp, forward));
+		glm::vec3 up = glm::normalize(glm::cross(forward, right));
+
+		glm::mat4 subModelMatrix = glm::mat4(1.0f);
+		subModelMatrix[0] = glm::vec4(right, 0.0f);
+		subModelMatrix[1] = glm::vec4(up, 0.0f);
+		subModelMatrix[2] = glm::vec4(forward, 0.0f);
+		subModelMatrix[3] = glm::vec4(currentPos, 1.0f);
+
+		// Разворот на 180 градусов (оставляем, если модель отмоделена задом наперед)
+		subModelMatrix = glm::rotate(subModelMatrix, glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+		// ------------------------------------------------------------------
 
 		glm::mat4 floorMatrix(1.0f);
 		floorMatrix = glm::translate(floorMatrix, glm::vec3(0.0f, -15.0f, 0.0f));
@@ -241,6 +347,7 @@ int main() {
 		glm::mat4 lightView = glm::lookAt(lightPos, glm::vec3(0.0f), glm::vec3(0.0, 1.0, 0.0));
 		glm::mat4 lightSpaceMatrix = lightProjection * lightView;
 
+		// --- 2. ПРОХОД ТЕНЕЙ (SHADOW MAPPING) ---
 		shadowShader.use();
 		shadowShader.setMat4("lightSpaceMatrix", lightSpaceMatrix);
 
@@ -248,7 +355,7 @@ int main() {
 		glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
 		glClear(GL_DEPTH_BUFFER_BIT);
 
-		shadowShader.setMat4("model", modelMatrix);
+		shadowShader.setMat4("model", subModelMatrix);
 		submarine.Draw(shadowShader);
 
 		shadowShader.setMat4("model", floorMatrix);
@@ -256,6 +363,7 @@ int main() {
 
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
+		// --- 3. ОСНОВНОЙ ПРОХОД (PBR РЕНДЕРИНГ) ---
 		glViewport(0, 0, g_windowWidth, g_windowHeight);
 		glClearColor(0.05f, 0.1f, 0.15f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -276,17 +384,17 @@ int main() {
 			pbrShader.setVec3("lightColors[" + std::to_string(i) + "]", currentLightColor);
 		}
 
-		pbrShader.setMat4("model", modelMatrix);
-		pbrShader.setFloat("ao", ui_ambientOcclusion);
-		pbrShader.setFloat("metallic", ui_metallic);
-		pbrShader.setFloat("roughness", ui_roughness);
-
-		pbrShader.setBool("useNormalMap", false); 
-
 		pbrShader.setBool("useAlbedoMap", true);
 		glActiveTexture(GL_TEXTURE3);
 		glBindTexture(GL_TEXTURE_2D, subAlbedoTex);
 		pbrShader.setInt("albedoMap", 3);
+
+		pbrShader.setBool("useNormalMap", false);
+		pbrShader.setVec3("albedo", ui_albedoColor);
+		pbrShader.setFloat("ao", ui_ambientOcclusion);
+		pbrShader.setFloat("metallic", ui_metallic);
+		pbrShader.setFloat("roughness", ui_roughness);
+		pbrShader.setMat4("model", subModelMatrix);
 
 		submarine.Draw(pbrShader);
 
@@ -307,14 +415,34 @@ int main() {
 
 		seabed.Draw(pbrShader);
 
-		pbrShader.setBool("useAlbedoMap", false);
-		pbrShader.setBool("useNormalMap", false);
-
+		// --- 4. РЕНДЕРИНГ СКАЙБОКСА ---
 		skyboxShader.use();
 		skyboxShader.setMat4("view", view);
 		skyboxShader.setMat4("projection", projection);
 		skybox.Draw(skyboxShader);
 
+		// --- 5. РЕНДЕРИНГ ПУТИ (СПЛАЙНА) ---
+		if (pathLineCount > 0) {
+			glDisable(GL_DEPTH_TEST);
+			glDepthMask(GL_FALSE);
+			glLineWidth(3.0f);
+
+			linesShader.use();
+			linesShader.setMat4("projection", projection);
+			linesShader.setMat4("view", view);
+
+			glBindVertexArray(pathVAO);
+			linesShader.setVec3("lineColor", glm::vec3(0.0f, 1.0f, 1.0f));
+			const GLenum pathDrawMode = useClosedTrajectory ? GL_LINE_LOOP : GL_LINE_STRIP;
+			glDrawArrays(pathDrawMode, 0, static_cast<GLsizei>(pathLineCount));
+
+			glBindVertexArray(0);
+			glLineWidth(1.0f);
+			glDepthMask(GL_TRUE);
+			glEnable(GL_DEPTH_TEST);
+		}
+
+		// --- 6. РЕНДЕРИНГ ИНТЕРФЕЙСА (ImGui) ---
 		ImGui::Begin("GRK: Interactive U-Boat Diorama");
 		ImGui::Separator();
 		ImGui::Text("System Controls");
@@ -348,6 +476,10 @@ int main() {
 	ImGui_ImplOpenGL3_Shutdown();
 	ImGui_ImplGlfw_Shutdown();
 	ImGui::DestroyContext();
+
+	glDeleteBuffers(1, &pathVBO);
+	glDeleteVertexArrays(1, &pathVAO);
+
 	glfwDestroyWindow(window);
 	glfwTerminate();
 
