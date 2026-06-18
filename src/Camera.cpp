@@ -4,7 +4,7 @@
 #include <glm/gtx/quaternion.hpp>
 
 Camera::Camera(const glm::vec3& startPosition)
-    : position(startPosition), orientation(glm::identity<glm::quat>()), movementSpeed(3.0f), mouseSensitivity(0.0025f) {}
+    : position(startPosition), orientation(glm::identity<glm::quat>()), movementSpeed(10.0f), mouseSensitivity(0.0025f) {}
 
 void Camera::ProcessMouse(float deltaX, float deltaY) {
     glm::vec3 forward = GetForward();

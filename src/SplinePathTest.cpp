@@ -17,9 +17,14 @@ namespace {
         controlPoints.emplace_back(3.0f, 0.0f, -0.5f);
         controlPoints.emplace_back(4.2f, -0.4f, -1.8f);
 
-        SplinePath spline(controlPoints);
+        SplinePath spline(controlPoints, true);
 
         std::cout << "[SplinePathTest] orthogonality check" << std::endl;
+        glm::vec3 firstNormal(0.0f);
+        glm::vec3 lastNormal(0.0f);
+        glm::vec3 firstBinormal(0.0f);
+        glm::vec3 lastBinormal(0.0f);
+
         for (int i = 0; i <= 12; ++i) {
             const auto t = static_cast<float>(i) / 12.0f;
             const auto transform = spline.GetTransform(t);
@@ -47,7 +52,27 @@ namespace {
             assert(std::abs(glm::length(right) - 1.0f) < 1e-3f);
             assert(std::abs(glm::length(up) - 1.0f) < 1e-3f);
             assert(std::abs(glm::length(forward) - 1.0f) < 1e-3f);
+
+            if (i == 0) {
+                firstNormal = up;
+                firstBinormal = right;
+            }
+            if (i == 12) {
+                lastNormal = up;
+                lastBinormal = right;
+            }
+
+            assert(up.y <= 0.25f);
         }
+
+        const float seamNormalDelta = glm::length(firstNormal - lastNormal);
+        const float seamBinormalDelta = glm::length(firstBinormal - lastBinormal);
+
+        std::cout << "[SplinePathTest] seam delta normal=" << seamNormalDelta
+                  << " binormal=" << seamBinormalDelta << std::endl;
+
+        assert(seamNormalDelta < 5e-2f);
+        assert(seamBinormalDelta < 5e-2f);
     }
 }
 

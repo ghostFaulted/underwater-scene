@@ -284,7 +284,9 @@ int main() {
         std::vector<glm::vec3> pathLineVertices;
         pathLineVertices.reserve(splinePointsNumber);
 
-        for (float t = 0.0f; t <= 1.0f; t += 1.0f / splinePointsNumber) {
+		const int sampleCount = useClosedTrajectory ? splinePointsNumber : splinePointsNumber + 1;
+		for (int i = 0; i < sampleCount; ++i) {
+			const float t = static_cast<float>(i) / static_cast<float>(splinePointsNumber);
             auto transform = submarinePath.GetTransform(t);
             pathLineVertices.push_back(glm::vec3(transform[3]));
         }

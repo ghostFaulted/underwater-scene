@@ -31,6 +31,38 @@ namespace {
         return {1.0f, 0.0f, 0.0f};
     }
 
+    glm::vec3 ProjectOntoPlane(const glm::vec3 &vector, const glm::vec3 &planeNormal) {
+        return vector - planeNormal * glm::dot(vector, planeNormal);
+    }
+
+    glm::vec3 BuildDownBiasedNormal(const glm::vec3 &tangent) {
+        const glm::vec3 down(0.0f, -1.0f, 0.0f);
+        glm::vec3 normal = ProjectOntoPlane(down, tangent);
+
+        if (glm::dot(normal, normal) <= kEpsilon) {
+            const glm::vec3 fallbackAxis = std::abs(tangent.y) < 0.9f ? glm::vec3(1.0f, 0.0f, 0.0f)
+                                                                       : glm::vec3(0.0f, 0.0f, 1.0f);
+            normal = ProjectOntoPlane(glm::cross(tangent, fallbackAxis), tangent);
+        }
+
+        normal = NormalizeOrFallback(normal, glm::vec3(0.0f, -1.0f, 0.0f));
+        if (glm::dot(normal, down) < 0.0f) {
+            normal = -normal;
+        }
+
+        return normal;
+    }
+
+    float SignedAngleAroundAxis(const glm::vec3 &from, const glm::vec3 &to, const glm::vec3 &axis) {
+        const glm::vec3 nAxis = NormalizeOrFallback(axis, glm::vec3(0.0f, 1.0f, 0.0f));
+        const glm::vec3 fromProjected = NormalizeOrFallback(ProjectOntoPlane(from, nAxis), from);
+        const glm::vec3 toProjected = NormalizeOrFallback(ProjectOntoPlane(to, nAxis), to);
+
+        const float sine = glm::dot(nAxis, glm::cross(fromProjected, toProjected));
+        const float cosine = ClampDot(glm::dot(fromProjected, toProjected));
+        return std::atan2(sine, cosine);
+    }
+
     glm::vec3 RotateAroundAxis(const glm::vec3 &vector, glm::vec3 axis, const float angle) {
         axis = NormalizeOrFallback(axis, glm::vec3(0.0f, 1.0f, 0.0f));
 
@@ -126,11 +158,7 @@ void SplinePath::BuildFrames() {
         glm::vec3 tangent = NormalizeOrFallback(sampleTangent(t), previousTangent);
 
         if (!hasPreviousFrame) {
-            const glm::vec3 helperAxis = std::abs(tangent.y) < 0.9f
-                                             ? glm::vec3(0.0f, 1.0f, 0.0f)
-                                             : glm::vec3(1.0f, 0.0f, 0.0f);
-
-            glm::vec3 normal = NormalizeOrFallback(glm::cross(helperAxis, tangent), glm::vec3(0.0f, 1.0f, 0.0f));
+            glm::vec3 normal = BuildDownBiasedNormal(tangent);
             glm::vec3 binormal = NormalizeOrFallback(glm::cross(tangent, normal), glm::vec3(1.0f, 0.0f, 0.0f));
 
             frames.push_back(Frame{t, position, tangent, normal, binormal});
@@ -165,6 +193,30 @@ void SplinePath::BuildFrames() {
         previousTangent = tangent;
         previousNormal = normal;
         previousBinormal = binormal;
+    }
+
+    if (closedLoop && frames.size() > 1) {
+        const glm::vec3 seamAxis = NormalizeOrFallback(frames.front().tangent + frames.back().tangent, frames.front().tangent);
+        const float seamTwist = SignedAngleAroundAxis(frames.back().normal, frames.front().normal, seamAxis);
+
+        if (std::abs(seamTwist) > kEpsilon) {
+            const float invLastIndex = 1.0f / static_cast<float>(frames.size() - 1);
+
+            for (std::size_t i = 0; i < frames.size(); ++i) {
+                const float blend = static_cast<float>(i) * invLastIndex;
+                const float angle = seamTwist * blend;
+
+                Frame &frame = frames[i];
+                frame.normal = RotateAroundAxis(frame.normal, frame.tangent, angle);
+                frame.binormal = RotateAroundAxis(frame.binormal, frame.tangent, angle);
+
+                frame.normal = NormalizeOrFallback(frame.normal, BuildDownBiasedNormal(frame.tangent));
+                frame.binormal = NormalizeOrFallback(glm::cross(frame.tangent, frame.normal), frame.binormal);
+            }
+
+            frames.back().normal = frames.front().normal;
+            frames.back().binormal = frames.front().binormal;
+        }
     }
 }
 

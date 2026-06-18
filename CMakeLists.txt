@@ -72,6 +72,10 @@ add_executable(SplinePathTest
     src/SplinePath.cpp
 )
 
+target_include_directories(SplinePathTest PRIVATE
+    include
+)
+
 target_include_directories(UnderwaterScene PUBLIC
     include
     ${stb_SOURCE_DIR}
