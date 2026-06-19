@@ -263,6 +263,69 @@ glm::vec3 SplinePath::GetPosition(const float t) const {
     return SamplePositionOnSegment(static_cast<std::size_t>(segmentIndex), localT);
 }
 
+glm::vec3 SplinePath::GetTangent(const float t) const {
+    const std::size_t segments = GetSegmentCount();
+    float normalizedT = std::clamp(t, 0.0f, 1.0f);
+    if (closedLoop) {
+        normalizedT = t - std::floor(t);
+    }
+
+    const float scaledT = normalizedT * static_cast<float>(segments);
+    const int segmentIndex = std::min(static_cast<int>(std::floor(scaledT)), static_cast<int>(segments) - 1);
+    const float localT = scaledT - static_cast<float>(segmentIndex);
+
+    return NormalizeOrFallback(
+        SampleTangentOnSegment(static_cast<std::size_t>(segmentIndex), localT),
+        glm::vec3(0.0f, 0.0f, 1.0f)
+    );
+}
+
+float SplinePath::GetSignedCurvature(const float t) const {
+    const std::size_t segments = GetSegmentCount();
+    float normalizedT = std::clamp(t, 0.0f, 1.0f);
+    if (closedLoop) {
+        normalizedT = t - std::floor(t);
+    }
+
+    const float scaledT = normalizedT * static_cast<float>(segments);
+    const int segmentIndex = std::min(static_cast<int>(std::floor(scaledT)), static_cast<int>(segments) - 1);
+    const float localT = scaledT - static_cast<float>(segmentIndex);
+
+    glm::vec3 p0(0.0f);
+    glm::vec3 p1(0.0f);
+    glm::vec3 p2(0.0f);
+    glm::vec3 p3(0.0f);
+
+    if (closedLoop) {
+        const auto n = static_cast<int>(controlPoints.size());
+        const auto i = segmentIndex % n;
+        p0 = controlPoints[(i - 1 + n) % n];
+        p1 = controlPoints[i];
+        p2 = controlPoints[(i + 1) % n];
+        p3 = controlPoints[(i + 2) % n];
+    } else {
+        p0 = controlPoints[segmentIndex];
+        p1 = controlPoints[segmentIndex + 1];
+        p2 = controlPoints[segmentIndex + 2];
+        p3 = controlPoints[segmentIndex + 3];
+    }
+
+    const glm::vec3 d1 = CatmullRomTangent(p0, p1, p2, p3, localT);
+    const glm::vec3 d2 = CatmullRomSecondDerivative(p0, p1, p2, p3, localT);
+
+    const float speedSq = glm::dot(d1, d1);
+    if (speedSq <= kEpsilon) {
+        return 0.0f;
+    }
+
+    const glm::vec3 tangent = NormalizeOrFallback(d1, glm::vec3(0.0f, 0.0f, 1.0f));
+    const glm::vec3 curvatureVector = (d2 * speedSq - d1 * glm::dot(d1, d2)) / (speedSq * speedSq);
+    const glm::vec3 binormal = NormalizeOrFallback(glm::vec3(GetTransform(normalizedT)[0]), glm::vec3(1.0f, 0.0f, 0.0f));
+    const glm::vec3 projectedCurvature = ProjectOntoPlane(curvatureVector, tangent);
+
+    return glm::dot(projectedCurvature, binormal);
+}
+
 glm::mat4 SplinePath::GetTransform(const float t) const {
     if (frames.empty()) {
         return glm::mat4(1.0f);
@@ -329,3 +392,12 @@ glm::vec3 SplinePath::CatmullRomTangent(const glm::vec3 p0, const glm::vec3 p1, 
                3.0f * (-p0 + 3.0f * p1 - 3.0f * p2 + p3) * t2
            );
 }
+
+glm::vec3 SplinePath::CatmullRomSecondDerivative(const glm::vec3 p0, const glm::vec3 p1, const glm::vec3 p2,
+                                                 const glm::vec3 p3, const float t) {
+    return 0.5f * (
+               2.0f * (2.0f * p0 - 5.0f * p1 + 4.0f * p2 - p3) +
+               6.0f * (-p0 + 3.0f * p1 - 3.0f * p2 + p3) * t
+           );
+}
+

@@ -10,6 +10,25 @@
 #include <cmath>
 #include <string>
 
+#include "SplineSwimAnimator.h"
+
+namespace {
+    SplineSwimAnimator& GetSwimAnimator() {
+        static SplineSwimAnimator animator;
+        return animator;
+    }
+
+    void ApplySubmarineSkinning(Shader& shader, const SceneRenderContext& context) {
+        auto& animator = GetSwimAnimator();
+        animator.BuildPose(context.animationTimeSeconds, context.signedTurnCurvature);
+        animator.UploadToShader(shader, true);
+    }
+
+    void DisableSubmarineSkinning(Shader& shader) {
+        GetSwimAnimator().UploadToShader(shader, false);
+    }
+}
+
 void UpdateCamera(AppState& appState, const float deltaTime) {
     if (!appState.cursorDisabled) {
         return;
@@ -44,6 +63,9 @@ SceneRenderContext BuildSceneRenderContext(
     context.cameraPosition = appState.camera.GetPosition();
 
     const float splineTime = std::fmod(currentFrameTime / 20.0f, 1.0f);
+    context.animationTimeSeconds = currentFrameTime;
+    context.splineTime = splineTime;
+    context.signedTurnCurvature = submarinePath.GetSignedCurvature(splineTime);
     context.submarineModelMatrix = submarinePath.GetTransform(splineTime);
     context.submarineModelMatrix = glm::rotate(
         context.submarineModelMatrix,
@@ -77,9 +99,11 @@ void RenderShadowPass(
     glClear(GL_DEPTH_BUFFER_BIT);
 
     shadowShader.setMat4("model", context.submarineModelMatrix);
+    ApplySubmarineSkinning(shadowShader, context);
     submarine.Draw(shadowShader);
 
     shadowShader.setMat4("model", context.floorMatrix);
+    DisableSubmarineSkinning(shadowShader);
     seabed.Draw(shadowShader);
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -128,9 +152,11 @@ void RenderPbrScene(
     pbrShader.setFloat("metallic", appState.metallic);
     pbrShader.setFloat("roughness", appState.roughness);
     pbrShader.setMat4("model", context.submarineModelMatrix);
+    ApplySubmarineSkinning(pbrShader, context);
     submarine.Draw(pbrShader);
 
     pbrShader.setMat4("model", context.floorMatrix);
+    DisableSubmarineSkinning(pbrShader);
     pbrShader.setFloat("metallic", 0.0f);
     pbrShader.setFloat("roughness", 0.9f);
     pbrShader.setFloat("ao", 1.0f);

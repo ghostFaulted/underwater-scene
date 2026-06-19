@@ -72,6 +72,8 @@ add_executable(UnderwaterScene
     "include/Model.h"
     src/Raycaster.cpp
     "include/Raycaster.h"
+    src/SplineSwimAnimator.cpp
+    "include/SplineSwimAnimator.h"
 )
 
 add_executable(SplinePathTest

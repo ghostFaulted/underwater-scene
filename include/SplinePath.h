@@ -26,6 +26,9 @@ class SplinePath {
     [[nodiscard]] static glm::vec3 CatmullRomTangent(glm::vec3 p0, glm::vec3 p1,
                                                      glm::vec3 p2, glm::vec3 p3, float t);
 
+    [[nodiscard]] static glm::vec3 CatmullRomSecondDerivative(glm::vec3 p0, glm::vec3 p1,
+                                                              glm::vec3 p2, glm::vec3 p3, float t);
+
     [[nodiscard]] std::size_t GetSegmentCount() const;
 
     [[nodiscard]] glm::vec3 SamplePositionOnSegment(std::size_t segmentIndex, float localT) const;
@@ -40,6 +43,10 @@ public:
     explicit SplinePath(const std::vector<glm::vec3> &controlPoints, bool closedLoop = false);
 
     [[nodiscard]] glm::vec3 GetPosition(float t) const;
+
+    [[nodiscard]] glm::vec3 GetTangent(float t) const;
+
+    [[nodiscard]] float GetSignedCurvature(float t) const;
 
     [[nodiscard]] glm::mat4 GetTransform(float t) const;
 };

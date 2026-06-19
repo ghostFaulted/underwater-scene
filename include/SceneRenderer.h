@@ -15,6 +15,9 @@ struct SceneRenderContext {
     glm::mat4 view{1.0f};
     glm::vec3 cameraPosition{0.0f};
     glm::mat4 submarineModelMatrix{1.0f};
+    float animationTimeSeconds = 0.0f;
+    float splineTime = 0.0f;
+    float signedTurnCurvature = 0.0f;
     glm::mat4 floorMatrix{1.0f};
     glm::mat4 lightSpaceMatrix{1.0f};
 };
