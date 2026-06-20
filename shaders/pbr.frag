@@ -3,10 +3,9 @@ out vec4 FragColor;
 
 in vec2 TexCoords;
 in vec3 WorldPos;
-in vec3 Normal;
+in mat3 TBN; 
 in vec4 FragPosLightSpace; 
 
-in mat3 TBN; 
 uniform sampler2D normalMap; 
 uniform bool useNormalMap;  
 
@@ -23,6 +22,13 @@ uniform vec3 lightColors[4];
 uniform vec3 camPos;
 
 uniform sampler2D shadowMap; 
+
+uniform vec3 dirLightDirection;
+uniform vec3 dirLightColor;
+uniform float dirLightIntensity;
+
+uniform vec3 waterColor;
+uniform float fogDensity;
 
 const float PI = 3.14159265359;
 
@@ -79,7 +85,7 @@ float ShadowCalculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir)
     return shadow;
 }
 
-void main() {		
+void main() {       
     vec3 currentAlbedo = albedo;
     if (useAlbedoMap) {
         currentAlbedo = texture(albedoMap, TexCoords).rgb;
@@ -101,12 +107,35 @@ void main() {
     F0 = mix(F0, currentAlbedo, metallic);
 
     vec3 Lo = vec3(0.0);
+
+    vec3 L_dir = normalize(-dirLightDirection);
+    vec3 H_dir = normalize(V + L_dir);
+    vec3 radiance_dir = dirLightColor * dirLightIntensity;
+
+    float NDF_dir = DistributionGGX(N, H_dir, roughness);   
+    float G_dir   = GeometrySmith(N, V, L_dir, roughness);      
+    vec3 F_dir    = fresnelSchlick(max(dot(H_dir, V), 0.0), F0);       
+    
+    vec3 nom_dir    = NDF_dir * G_dir * F_dir; 
+    float denom_dir = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L_dir), 0.0) + 0.001; 
+    vec3 spec_dir = nom_dir / denom_dir;
+    
+    vec3 kS_dir = F_dir;
+    vec3 kD_dir = vec3(1.0) - kS_dir;
+    kD_dir *= 1.0 - metallic;     
+
+    float NdotL_dir = max(dot(N, L_dir), 0.0);   
+    
+    float shadow = ShadowCalculation(FragPosLightSpace, N, L_dir);
+
+    Lo += (1.0 - shadow) * (kD_dir * currentAlbedo / PI + spec_dir) * radiance_dir * NdotL_dir;
+
     for(int i = 0; i < 4; ++i) 
     {
         vec3 L = normalize(lightPositions[i] - WorldPos);
         vec3 H = normalize(V + L);
-        float distance = length(lightPositions[i] - WorldPos);
-        float attenuation = 1.0 / (distance * distance);
+        float dist = length(lightPositions[i] - WorldPos);
+        float attenuation = 1.0 / (dist * dist);
         vec3 radiance = lightColors[i] * attenuation;
 
         float NDF = DistributionGGX(N, H, roughness);   
@@ -119,20 +148,21 @@ void main() {
         
         vec3 kS = F;
         vec3 kD = vec3(1.0) - kS;
-        kD *= 1.0 - metallic;	  
+        kD *= 1.0 - metallic;     
 
         float NdotL = max(dot(N, L), 0.0);   
         
-        float shadow = 0.0;
-        if(i == 0) { 
-            shadow = ShadowCalculation(FragPosLightSpace, N, L);
-        }
-
-        Lo += (1.0 - shadow) * (kD * currentAlbedo / PI + specular) * radiance * NdotL;
+        Lo += (kD * currentAlbedo / PI + specular) * radiance * NdotL;
     }   
     
     vec3 ambient = vec3(0.03) * currentAlbedo * ao;
     vec3 color = ambient + Lo;
+
+    float cameraDist = length(camPos - WorldPos);
+    float fogFactor = exp(-pow((cameraDist * fogDensity), 2.0));
+    fogFactor = clamp(fogFactor, 0.0, 1.0);
+    
+    color = mix(waterColor, color, fogFactor);
 
     color = color / (color + vec3(1.0));
     color = pow(color, vec3(1.0/2.2)); 
