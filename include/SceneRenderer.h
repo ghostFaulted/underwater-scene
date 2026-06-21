@@ -14,7 +14,7 @@ struct SceneRenderContext {
     glm::mat4 projection{1.0f};
     glm::mat4 view{1.0f};
     glm::vec3 cameraPosition{0.0f};
-    glm::mat4 submarineModelMatrix{1.0f};
+    glm::mat4 sharkModelMatrix{1.0f};
     float animationTimeSeconds = 0.0f;
     float splineTime = 0.0f;
     float signedTurnCurvature = 0.0f;
@@ -26,14 +26,15 @@ void UpdateCamera(AppState& appState, float deltaTime);
 void BeginImGuiFrame();
 SceneRenderContext BuildSceneRenderContext(
     const AppState& appState,
-    const SplinePath& submarinePath,
+    const SplinePath& sharkPath,
     const glm::vec3& lightPosition,
     float currentFrameTime
 );
 void RenderShadowPass(
     const SceneRenderContext& context,
     Shader& shadowShader,
-    Model& submarine,
+    const AppState& appState,
+    Model& shark,
     Model& seabed,
     const ShadowMapResources& shadowMap
 );
@@ -41,7 +42,7 @@ void RenderPbrScene(
     const SceneRenderContext& context,
     const AppState& appState,
     Shader& pbrShader,
-    Model& submarine,
+    Model& shark,
     Model& seabed,
     const TextureSet& textures,
     const ShadowMapResources& shadowMap,
@@ -51,5 +52,5 @@ void RenderPbrScene(
 );
 void RenderSkyboxPass(const SceneRenderContext& context, Shader& skyboxShader, Skybox& skybox);
 void RenderTrajectoryDebug(const SceneRenderContext& context, Shader& linesShader, const TrajectoryDebugBuffers& buffers);
-void RenderControlPanel(AppState& appState);
+void RenderControlPanel(AppState& appState, const Model& shark, const float signedCurvature);
 

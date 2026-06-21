@@ -54,7 +54,7 @@ void key_callback(GLFWwindow* window, const int key, const int scancode, const i
     }
 
     if (key == GLFW_KEY_F && action == GLFW_PRESS) {
-        appState->submarineLights = !appState->submarineLights;
+        appState->sharkLights = !appState->sharkLights;
     }
 
     if (key >= 0 && key < 1024) {

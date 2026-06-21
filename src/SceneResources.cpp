@@ -5,33 +5,100 @@
 
 #include <filesystem>
 #include <iostream>
+#include <algorithm>
 
 namespace {
+    // Try to load texture from path, supporting common image formats.
+    // For DDS and other specialized formats, print a warning and return white placeholder.
     unsigned int LoadTexture(const char* path) {
         unsigned int textureID = 0;
         glGenTextures(1, &textureID);
 
-        int width = 0;
-        int height = 0;
-        int nrComponents = 0;
-        unsigned char* data = stbi_load(path, &width, &height, &nrComponents, 4);
-        if (data == nullptr) {
-            std::cout << "Texture failed to load at path: " << path << std::endl;
-            stbi_image_free(data);
-            return textureID;
+        // Resolve path through fallbacks (current dir, parent dir, etc.)
+        std::string resolvedPath = path;
+        if (!std::filesystem::exists(resolvedPath)) {
+            std::string parentPath = std::string("../") + path;
+            if (std::filesystem::exists(parentPath)) {
+                resolvedPath = parentPath;
+            } else {
+                // Try sibling directories
+                std::filesystem::path p(path);
+                if (!p.parent_path().empty()) {
+                    // Last component is filename
+                    std::string filename = p.filename().string();
+                    std::string dir = p.parent_path().string();
+                    std::string altPath = std::string("../") + dir + "/" + filename;
+                    if (std::filesystem::exists(altPath)) {
+                        resolvedPath = altPath;
+                    }
+                }
+            }
         }
 
-        constexpr GLenum format = GL_RGBA;
-        glBindTexture(GL_TEXTURE_2D, textureID);
-        glTexImage2D(GL_TEXTURE_2D, 0, static_cast<GLint>(format), width, height, 0, format, GL_UNSIGNED_BYTE, data);
-        glGenerateMipmap(GL_TEXTURE_2D);
+        // Check file extension
+        std::string ext;
+        {
+            size_t lastDot = resolvedPath.find_last_of('.');
+            if (lastDot != std::string::npos) {
+                ext = resolvedPath.substr(lastDot);
+                // Convert to lowercase
+                std::transform(ext.begin(), ext.end(), ext.begin(),
+                    [](unsigned char c) { return std::tolower(c); });
+            }
+        }
 
+        // ── Try stbi_load for standard formats ────────────────────────────
+        if (ext == ".jpg" || ext == ".jpeg" || ext == ".png" || ext == ".bmp" || ext == ".tga") {
+            int width = 0, height = 0, nrComponents = 0;
+            unsigned char* data = stbi_load(resolvedPath.c_str(), &width, &height, &nrComponents, 0);
+            if (data != nullptr) {
+                GLenum format = GL_RGB;
+                if (nrComponents == 1) {
+                    format = GL_RED;
+                } else if (nrComponents == 2) {
+                    format = GL_RG;
+                } else if (nrComponents == 3) {
+                    format = GL_RGB;
+                } else if (nrComponents == 4) {
+                    format = GL_RGBA;
+                }
+
+                glBindTexture(GL_TEXTURE_2D, textureID);
+                // Avoid row-alignment overruns for RGB/RG textures with odd widths.
+                glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+                glTexImage2D(GL_TEXTURE_2D, 0, static_cast<GLint>(format), width, height, 0, format, GL_UNSIGNED_BYTE, data);
+                glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+                glGenerateMipmap(GL_TEXTURE_2D);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+                stbi_image_free(data);
+                std::cout << "[OK] Loaded: " << path
+                          << " (" << width << "x" << height
+                          << ", channels=" << nrComponents << ")" << std::endl;
+                return textureID;
+            }
+            std::cout << "[FAIL] stbi_load failed for: " << path << std::endl;
+        }
+
+        // ── DDS and other formats: create white placeholder ────────────────
+        if (ext == ".dds") {
+            std::cout << "[WARN] DDS not supported via stb_image. Using white placeholder for: " << path << std::endl;
+            std::cout << "       To use DDS textures, convert them to PNG or JPEG." << std::endl;
+        } else {
+            std::cout << "[FAIL] Could not load texture: " << path << std::endl;
+        }
+
+        // Create 1x1 white placeholder texture
+        constexpr unsigned char whitePixel[] = { 255, 255, 255, 255 };
+        glBindTexture(GL_TEXTURE_2D, textureID);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, whitePixel);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-        stbi_image_free(data);
         return textureID;
     }
 
@@ -57,9 +124,9 @@ namespace {
 }
 
 std::string ResolveShaderPath(const std::string& relativePath) {
-    if (std::filesystem::exists(relativePath)) {
-        return relativePath;
-    }
+    // if (std::filesystem::exists(relativePath)) {
+    //     return relativePath;
+    // }
 
     std::string parentPath = "../" + relativePath;
     if (std::filesystem::exists(parentPath)) {
@@ -78,7 +145,9 @@ ShaderSet LoadShaders() {
     const std::string lineFragPath = ResolveShaderPath("shaders/lines.frag");
     const std::string shadowVertPath = ResolveShaderPath("shaders/shadow.vert");
     const std::string shadowFragPath = ResolveShaderPath("shaders/shadow.frag");
-
+    std::cout
+    << std::filesystem::absolute(pbrFragPath)
+    << std::endl;
     std::cout << "[DEBUG] Shaders loaded successfully" << std::endl;
     return {
         pbrVertPath,
@@ -94,9 +163,15 @@ ShaderSet LoadShaders() {
 
 TextureSet LoadTextures() {
     return {
-        LoadTexture("assets/submarine/ger_sub_diffuse.png"),
-        LoadTexture("assets/ocean_floor/model.jpg"),
-        LoadTexture("assets/ocean_floor/seabed_normal.png")
+        LoadTexture("assets/shark/greatwhiteshark.png"),              // sharkAlbedo (diffuse)
+        LoadTexture("assets/shark/greatwhiteshark_DDNDIF.png"),       // sharkNormal (normal map)
+        LoadTexture("assets/shark/greatwhiteshark_spec.png"),         // sharkDetailNormal (specular, repurposed)
+        LoadTexture("assets/shark/greatwhiteshark_Eye.png"),          // sharkEyeAlbedo
+        LoadTexture("assets/shark/greatwhiteshark_Eye_DDNDIF.png"),   // sharkEyeNormal
+        LoadTexture("assets/shark/greatwhiteshark_teeth.png"),        // sharkTeethAlbedo
+        LoadTexture("assets/shark/greatwhiteshark_teeth_DDNDIF.png"), // sharkTeethNormal
+        LoadTexture("assets/ocean_floor/model.jpg"),                  // seabedAlbedo
+        LoadTexture("assets/ocean_floor/seabed_normal.png")           // seabedNormal
     };
 }
 

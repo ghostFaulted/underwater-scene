@@ -9,22 +9,44 @@ in vec4 FragPosLightSpace;
 in mat3 TBN; 
 uniform sampler2D normalMap; 
 uniform bool useNormalMap;  
+uniform sampler2D detailNormalMap;
+uniform bool useDetailNormalMap;
+uniform float detailNormalStrength;
 
 uniform sampler2D albedoMap; 
 uniform bool useAlbedoMap;
+uniform sampler2D albedoMapEye;
+uniform sampler2D albedoMapTeeth;
 
 uniform vec3 albedo;
 uniform float metallic;
 uniform float roughness;
 uniform float ao;
 
+// Параметры для специальных материалов
+uniform vec3 teethColor = vec3(0.95, 0.95, 0.95);  // Белые зубы
+uniform float teethMetallic = 0.05;
+uniform float teethRoughness = 0.3;
+
 uniform vec3 lightPositions[4];
 uniform vec3 lightColors[4];
 uniform vec3 camPos;
 
 uniform sampler2D shadowMap; 
+uniform sampler2D normalMapEye;
+uniform sampler2D normalMapTeeth;
+uniform int uMeshMaterialKind = 0;
+uniform bool uDebugMaterialKindView = false;
+uniform bool uDebugRawAlbedoView = false;
 
 const float PI = 3.14159265359;
+
+vec3 BlendRNM(vec3 baseN, vec3 detailN) {
+    vec3 n1 = normalize(baseN);
+    vec3 n2 = normalize(detailN);
+    vec3 t = vec3(n1.xy + n2.xy, n1.z * n2.z);
+    return normalize(t);
+}
 
 float DistributionGGX(vec3 N, vec3 H, float roughness) {
     float a = roughness*roughness;
@@ -81,15 +103,74 @@ float ShadowCalculation(vec4 fragPosLightSpace, vec3 normal, vec3 lightDir)
 
 void main() {		
     vec3 currentAlbedo = albedo;
+    float currentMetallic = metallic;
+    float currentRoughness = roughness;
+    vec3 sampledAlbedo = vec3(1.0);
+
     if (useAlbedoMap) {
-        currentAlbedo = texture(albedoMap, TexCoords).rgb;
-        currentAlbedo = pow(currentAlbedo, vec3(2.2)); 
+        if (uMeshMaterialKind == 1) {
+            // Глаза
+            sampledAlbedo = texture(albedoMapEye, TexCoords).rgb;
+            currentAlbedo = sampledAlbedo;
+            currentAlbedo = pow(currentAlbedo, vec3(2.2));
+            currentAlbedo *= albedo;
+        } else if (uMeshMaterialKind == 2) {
+            // Зубы: используем белый цвет
+            sampledAlbedo = texture(albedoMapTeeth, TexCoords).rgb;
+            currentAlbedo = sampledAlbedo;
+            currentAlbedo = pow(currentAlbedo, vec3(2.2));
+            currentAlbedo *= teethColor;  // Переопределяем цвет на зубной
+            currentMetallic = teethMetallic;
+            currentRoughness = teethRoughness;
+        } else {
+            // Тело
+            sampledAlbedo = texture(albedoMap, TexCoords).rgb;
+            currentAlbedo = sampledAlbedo;
+            currentAlbedo = pow(currentAlbedo, vec3(2.2));
+            currentAlbedo *= albedo;
+        }
+    }
+
+    if (uDebugMaterialKindView) {
+        vec3 debugColor = vec3(0.8, 0.8, 0.8);
+        if (uMeshMaterialKind == 0) {
+            debugColor = vec3(0.1, 0.5, 1.0); // Body
+        } else if (uMeshMaterialKind == 1) {
+            debugColor = vec3(0.1, 1.0, 0.2); // Eyes
+        } else if (uMeshMaterialKind == 2) {
+            debugColor = vec3(1.0, 0.2, 0.2); // Teeth
+        }
+        FragColor = vec4(debugColor, 1.0);
+        return;
+    }
+
+    if (uDebugRawAlbedoView) {
+        FragColor = vec4(sampledAlbedo, 1.0);
+        return;
     }
 
     vec3 N;
     if (useNormalMap) {
-        N = texture(normalMap, TexCoords).rgb;
+        if (uMeshMaterialKind == 1) {
+            N = texture(normalMapEye, TexCoords).rgb;
+        } else if (uMeshMaterialKind == 2) {
+            N = texture(normalMapTeeth, TexCoords).rgb;
+        } else {
+            N = texture(normalMap, TexCoords).rgb;
+        }
         N = normalize(N * 2.0 - 1.0);
+        // DirectX/OpenGL flip for DDS normal maps (Y-up vs Y-down convention)
+        N.y = -N.y;
+
+        if (useDetailNormalMap) {
+            vec3 detailN = texture(detailNormalMap, TexCoords * 4.0).rgb;
+            detailN = normalize(detailN * 2.0 - 1.0);
+            detailN.y = -detailN.y;
+            detailN.xy *= detailNormalStrength;
+            detailN.z = sqrt(max(0.0001, 1.0 - dot(detailN.xy, detailN.xy)));
+            N = BlendRNM(N, detailN);
+        }
+
         N = normalize(TBN * N);
     } else {
         N = normalize(TBN[2]); 
@@ -98,7 +179,7 @@ void main() {
     vec3 V = normalize(camPos - WorldPos);
 
     vec3 F0 = vec3(0.04); 
-    F0 = mix(F0, currentAlbedo, metallic);
+    F0 = mix(F0, currentAlbedo, currentMetallic);
 
     vec3 Lo = vec3(0.0);
     for(int i = 0; i < 4; ++i) 
@@ -109,9 +190,9 @@ void main() {
         float attenuation = 1.0 / (distance * distance);
         vec3 radiance = lightColors[i] * attenuation;
 
-        float NDF = DistributionGGX(N, H, roughness);   
-        float G   = GeometrySmith(N, V, L, roughness);      
-        vec3 F    = fresnelSchlick(max(dot(H, V), 0.0), F0);       
+        float NDF = DistributionGGX(N, H, currentRoughness);
+        float G   = GeometrySmith(N, V, L, currentRoughness);
+        vec3 F    = fresnelSchlick(max(dot(H, V), 0.0), F0);
         
         vec3 nominator    = NDF * G * F; 
         float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.001; 
@@ -119,7 +200,7 @@ void main() {
         
         vec3 kS = F;
         vec3 kD = vec3(1.0) - kS;
-        kD *= 1.0 - metallic;	  
+        kD *= 1.0 - currentMetallic;
 
         float NdotL = max(dot(N, L), 0.0);   
         

@@ -1,34 +1,44 @@
 #version 330 core
 layout (location = 0) in vec3 aPos;
+layout (location = 5) in ivec4 aBoneIDs;
+layout (location = 6) in vec4 aBoneWeights;
 
-const int MAX_SPLINE_BONES = 16;
+const int MAX_BONES = 100;
 
 uniform mat4 lightSpaceMatrix;
 uniform mat4 model;
-uniform bool uEnableSplineSkinning;
-uniform int uSplineBoneCount;
-uniform float uSplineBodyMin;
-uniform float uSplineBodyMax;
-uniform mat4 uSplineBones[MAX_SPLINE_BONES];
+uniform bool uUseBoneSkinning;
+uniform mat4 uBoneTransforms[MAX_BONES];
+uniform mat4 uNodeTransform = mat4(1.0);
+uniform int uMeshMaterialKind = 0;
 
-mat4 EvaluateSplineSkinMatrix() {
-    if (!uEnableSplineSkinning || uSplineBoneCount < 2) {
-        return mat4(1.0);
+mat4 BoneMatrix(int index) {
+    int clamped = clamp(index, 0, MAX_BONES - 1);
+    return uBoneTransforms[clamped];
+}
+
+mat4 EvaluateSkinningMatrix() {
+    if (!uUseBoneSkinning || uMeshMaterialKind != 0) {
+        return uNodeTransform;
     }
 
-    float span = max(0.0001, uSplineBodyMax - uSplineBodyMin);
-    float normalized = clamp((aPos.z - uSplineBodyMin) / span, 0.0, 1.0);
-    float mapped = normalized * float(uSplineBoneCount - 1);
+    float weightSum = aBoneWeights.x + aBoneWeights.y + aBoneWeights.z + aBoneWeights.w;
+    if (weightSum <= 0.0001) {
+        return uNodeTransform;
+    }
 
-    int leftIndex = int(floor(mapped));
-    int rightIndex = min(leftIndex + 1, uSplineBoneCount - 1);
-    float alpha = mapped - float(leftIndex);
+    mat4 skin = mat4(0.0);
+    skin += BoneMatrix(aBoneIDs.x) * aBoneWeights.x;
+    skin += BoneMatrix(aBoneIDs.y) * aBoneWeights.y;
+    skin += BoneMatrix(aBoneIDs.z) * aBoneWeights.z;
+    skin += BoneMatrix(aBoneIDs.w) * aBoneWeights.w;
 
-    return mix(uSplineBones[leftIndex], uSplineBones[rightIndex], alpha);
+    return skin;
 }
 
 void main()
 {
-    vec3 skinnedPos = vec3(EvaluateSplineSkinMatrix() * vec4(aPos, 1.0));
+    mat4 skin = EvaluateSkinningMatrix();
+    vec3 skinnedPos = vec3(skin * vec4(aPos, 1.0));
     gl_Position = lightSpaceMatrix * model * vec4(skinnedPos, 1.0);
 }

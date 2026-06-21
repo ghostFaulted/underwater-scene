@@ -8,24 +8,31 @@
 #include <imgui_impl_opengl3.h>
 
 #include <cmath>
+#include <algorithm>
 #include <string>
 
-#include "SplineSwimAnimator.h"
+#include "SharkSkeletonAnimator.h"
 
 namespace {
-    SplineSwimAnimator& GetSwimAnimator() {
-        static SplineSwimAnimator animator;
+    SharkSkeletonAnimator& GetSwimAnimator() {
+        static SharkSkeletonAnimator animator;
         return animator;
     }
 
-    void ApplySubmarineSkinning(Shader& shader, const SceneRenderContext& context) {
+    void ApplySharkSkinning(Shader& shader, Model& sharkModel, const SceneRenderContext& context) {
         auto& animator = GetSwimAnimator();
-        animator.BuildPose(context.animationTimeSeconds, context.signedTurnCurvature);
-        animator.UploadToShader(shader, true);
+        static bool initialized = false;
+        if (!initialized) {
+            animator.InitializeFromModel(sharkModel);
+            initialized = true;
+        }
+
+        animator.ApplyPose(sharkModel, context.animationTimeSeconds, context.signedTurnCurvature);
+        sharkModel.UploadBoneTransforms(shader, true);
     }
 
-    void DisableSubmarineSkinning(Shader& shader) {
-        GetSwimAnimator().UploadToShader(shader, false);
+    void DisableSkinning(Shader& shader) {
+        shader.setBool("uUseBoneSkinning", false);
     }
 }
 
@@ -51,7 +58,7 @@ void BeginImGuiFrame() {
 
 SceneRenderContext BuildSceneRenderContext(
     const AppState& appState,
-    const SplinePath& submarinePath,
+    const SplinePath& sharkPath,
     const glm::vec3& lightPosition,
     const float currentFrameTime
 ) {
@@ -62,16 +69,19 @@ SceneRenderContext BuildSceneRenderContext(
     context.view = appState.camera.GetViewMatrix();
     context.cameraPosition = appState.camera.GetPosition();
 
-    const float splineTime = std::fmod(currentFrameTime / 20.0f, 1.0f);
+    const float splineTime = std::fmod(currentFrameTime / 42.0f, 1.0f);
     context.animationTimeSeconds = currentFrameTime;
     context.splineTime = splineTime;
-    context.signedTurnCurvature = submarinePath.GetSignedCurvature(splineTime);
-    context.submarineModelMatrix = submarinePath.GetTransform(splineTime);
-    context.submarineModelMatrix = glm::rotate(
-        context.submarineModelMatrix,
-        glm::radians(180.0f),
-        glm::vec3(1.0f, 0.0f, 0.0f)
-    );
+    context.signedTurnCurvature = sharkPath.GetSignedCurvature(splineTime);
+    context.sharkModelMatrix = sharkPath.GetTransform(splineTime);
+
+    // Корректирующий поворот на 180 градусов вокруг X оси для правильной ориентации
+    // (акула плывет "вверх ногами" без этого поворота)
+    context.sharkModelMatrix = glm::rotate(context.sharkModelMatrix, glm::radians(180.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+
+    // Scale shark model (FBX from 3ds Max is ~20x too large)
+    context.sharkModelMatrix = glm::scale(context.sharkModelMatrix, glm::vec3(0.05f));
+
 
     context.floorMatrix = glm::mat4(1.0f);
     context.floorMatrix = glm::translate(context.floorMatrix, glm::vec3(0.0f, -15.0f, 0.0f));
@@ -87,7 +97,8 @@ SceneRenderContext BuildSceneRenderContext(
 void RenderShadowPass(
     const SceneRenderContext& context,
     Shader& shadowShader,
-    Model& submarine,
+    const AppState& appState,
+    Model& shark,
     Model& seabed,
     const ShadowMapResources& shadowMap
 ) {
@@ -98,12 +109,12 @@ void RenderShadowPass(
     glBindFramebuffer(GL_FRAMEBUFFER, shadowMap.framebuffer);
     glClear(GL_DEPTH_BUFFER_BIT);
 
-    shadowShader.setMat4("model", context.submarineModelMatrix);
-    ApplySubmarineSkinning(shadowShader, context);
-    submarine.Draw(shadowShader);
+    shadowShader.setMat4("model", context.sharkModelMatrix);
+    ApplySharkSkinning(shadowShader, shark, context);
+    shark.Draw(shadowShader, nullptr);
 
     shadowShader.setMat4("model", context.floorMatrix);
-    DisableSubmarineSkinning(shadowShader);
+    DisableSkinning(shadowShader);
     seabed.Draw(shadowShader);
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -113,7 +124,7 @@ void RenderPbrScene(
     const SceneRenderContext& context,
     const AppState& appState,
     Shader& pbrShader,
-    Model& submarine,
+    Model& shark,
     Model& seabed,
     const TextureSet& textures,
     const ShadowMapResources& shadowMap,
@@ -130,6 +141,33 @@ void RenderPbrScene(
     pbrShader.setMat4("view", context.view);
     pbrShader.setVec3("camPos", context.cameraPosition);
     pbrShader.setMat4("lightSpaceMatrix", context.lightSpaceMatrix);
+    pbrShader.setBool("uDebugMaterialKindView", appState.debugMaterialKindView);
+    pbrShader.setBool("uDebugRawAlbedoView", appState.debugRawAlbedoView);
+
+    pbrShader.setInt("uMeshMaterialKind", 0);
+    pbrShader.setBool("useAlbedoMap", true);
+    glActiveTexture(GL_TEXTURE3);
+    glBindTexture(GL_TEXTURE_2D, textures.sharkAlbedo);
+    pbrShader.setInt("albedoMap", 3);
+
+    pbrShader.setBool("useNormalMap", true);
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, textures.sharkNormal);
+    pbrShader.setInt("normalMap", 2);
+
+    glActiveTexture(GL_TEXTURE5);
+    glBindTexture(GL_TEXTURE_2D, textures.sharkEyeAlbedo);
+    pbrShader.setInt("albedoMapEye", 5);
+    glActiveTexture(GL_TEXTURE6);
+    glBindTexture(GL_TEXTURE_2D, textures.sharkEyeNormal);
+    pbrShader.setInt("normalMapEye", 6);
+
+    glActiveTexture(GL_TEXTURE7);
+    glBindTexture(GL_TEXTURE_2D, textures.sharkTeethAlbedo);
+    pbrShader.setInt("albedoMapTeeth", 7);
+    glActiveTexture(GL_TEXTURE8);
+    glBindTexture(GL_TEXTURE_2D, textures.sharkTeethNormal);
+    pbrShader.setInt("normalMapTeeth", 8);
 
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, shadowMap.depthMap);
@@ -137,26 +175,34 @@ void RenderPbrScene(
 
     for (std::size_t i = 0; i < lightCount; ++i) {
         pbrShader.setVec3("lightPositions[" + std::to_string(i) + "]", lightPositions[i]);
-        const glm::vec3 currentLightColor = appState.submarineLights ? lightColors[i] : glm::vec3(0.0f);
+        const glm::vec3 currentLightColor = appState.sharkLights ? lightColors[i] : glm::vec3(0.0f);
         pbrShader.setVec3("lightColors[" + std::to_string(i) + "]", currentLightColor);
     }
 
-    pbrShader.setBool("useAlbedoMap", true);
-    glActiveTexture(GL_TEXTURE3);
-    glBindTexture(GL_TEXTURE_2D, textures.submarineAlbedo);
-    pbrShader.setInt("albedoMap", 3);
 
-    pbrShader.setBool("useNormalMap", false);
+    pbrShader.setBool("useDetailNormalMap", appState.sharkUseDetailNormal);
+    pbrShader.setFloat("detailNormalStrength", appState.sharkDetailNormalStrength);
+    glActiveTexture(GL_TEXTURE4);
+    glBindTexture(GL_TEXTURE_2D, textures.sharkDetailNormal);
+    pbrShader.setInt("detailNormalMap", 4);
+
     pbrShader.setVec3("albedo", appState.albedoColor);
     pbrShader.setFloat("ao", appState.ambientOcclusion);
     pbrShader.setFloat("metallic", appState.metallic);
     pbrShader.setFloat("roughness", appState.roughness);
-    pbrShader.setMat4("model", context.submarineModelMatrix);
-    ApplySubmarineSkinning(pbrShader, context);
-    submarine.Draw(pbrShader);
+
+    // Параметры для зубов
+    pbrShader.setVec3("teethColor", appState.teethColor);
+    pbrShader.setFloat("teethMetallic", appState.teethMetallic);
+    pbrShader.setFloat("teethRoughness", appState.teethRoughness);
+
+    pbrShader.setMat4("model", context.sharkModelMatrix);
+    ApplySharkSkinning(pbrShader, shark, context);
+    shark.Draw(pbrShader, &appState);
 
     pbrShader.setMat4("model", context.floorMatrix);
-    DisableSubmarineSkinning(pbrShader);
+    DisableSkinning(pbrShader);
+    pbrShader.setBool("useDetailNormalMap", false);
     pbrShader.setFloat("metallic", 0.0f);
     pbrShader.setFloat("roughness", 0.9f);
     pbrShader.setFloat("ao", 1.0f);
@@ -218,28 +264,124 @@ void RenderTrajectoryDebug(const SceneRenderContext& context, Shader& linesShade
     glEnable(GL_DEPTH_TEST);
 }
 
-void RenderControlPanel(AppState& appState) {
+void RenderControlPanel(AppState& appState, const Model& shark, const float signedCurvature) {
     ImGui::Begin("GRK: Interactive U-Boat Diorama");
     ImGui::Separator();
     ImGui::Text("System Controls");
     ImGui::Text("Press 'C' to toggle Cursor lock.");
     ImGui::Text("Cursor state: %s", appState.cursorDisabled ? "LOCKED (Camera)" : "FREE (UI Active)");
     ImGui::Separator();
-    ImGui::Text("Submarine PBR Materials");
-    ImGui::ColorEdit3("Steel Albedo", &appState.albedoColor[0]);
+    ImGui::Text("Shark PBR Materials");
+    ImGui::ColorEdit3("Body Tint", &appState.albedoColor[0]);
     ImGui::SliderFloat("Metallic (Metalness)", &appState.metallic, 0.0f, 1.0f);
     ImGui::SliderFloat("Roughness", &appState.roughness, 0.0f, 1.0f);
     ImGui::SliderFloat("Ambient Occlusion", &appState.ambientOcclusion, 0.0f, 1.0f);
+    ImGui::Checkbox("Use Detail Normal", &appState.sharkUseDetailNormal);
+    ImGui::SliderFloat("Detail Normal Strength", &appState.sharkDetailNormalStrength, 0.0f, 0.5f);
+
+    ImGui::Separator();
+    ImGui::Text("Teeth Materials");
+    ImGui::ColorEdit3("Teeth Color", &appState.teethColor[0]);
+    ImGui::SliderFloat("Teeth Metallic", &appState.teethMetallic, 0.0f, 1.0f);
+    ImGui::SliderFloat("Teeth Roughness", &appState.teethRoughness, 0.0f, 1.0f);
+
     ImGui::Separator();
     ImGui::Text("Environment (A14 / Fog)");
     ImGui::SliderFloat("Current Intensity", &appState.flowMapIntensity, 0.0f, 2.0f);
     ImGui::Separator();
-    ImGui::Text("Submarine controls");
-    ImGui::Checkbox("Toggle Lights (F)", &appState.submarineLights);
+    ImGui::Text("Shark controls");
+    ImGui::Checkbox("Toggle Lights (F)", &appState.sharkLights);
+    ImGui::Checkbox("Debug Material Kind Colors", &appState.debugMaterialKindView);
+    ImGui::Checkbox("Debug Raw Albedo", &appState.debugRawAlbedoView);
+
+    ImGui::Separator();
+    ImGui::Text("Eye/Teeth Position & Rotation Offsets");
+    ImGui::SliderFloat("Eye X offset", &appState.eyeMeshPositionOffset.x, -5.0f, 5.0f);
+    ImGui::SliderFloat("Eye Y offset", &appState.eyeMeshPositionOffset.y, -5.0f, 5.0f);
+    ImGui::SliderFloat("Eye Z offset", &appState.eyeMeshPositionOffset.z, -5.0f, 5.0f);
+    ImGui::SliderFloat("Eye Rot X (deg)", &appState.eyeMeshRotationOffset.x, -180.0f, 180.0f);
+    ImGui::SliderFloat("Eye Rot Y (deg)", &appState.eyeMeshRotationOffset.y, -180.0f, 180.0f);
+    ImGui::SliderFloat("Eye Rot Z (deg)", &appState.eyeMeshRotationOffset.z, -180.0f, 180.0f);
+
+    ImGui::Separator();
+    ImGui::SliderFloat("Teeth X offset", &appState.teethMeshPositionOffset.x, -200.0f, 200.0f);
+    ImGui::SliderFloat("Teeth Y offset", &appState.teethMeshPositionOffset.y, -200.0f, 200.0f);
+    ImGui::SliderFloat("Teeth Z offset", &appState.teethMeshPositionOffset.z, -200.0f, 200.0f);
+    ImGui::SliderFloat("Teeth Rot X (deg)", &appState.teethMeshRotationOffset.x, -180.0f, 180.0f);
+    ImGui::SliderFloat("Teeth Rot Y (deg)", &appState.teethMeshRotationOffset.y, -180.0f, 180.0f);
+    ImGui::SliderFloat("Teeth Rot Z (deg)", &appState.teethMeshRotationOffset.z, -180.0f, 180.0f);
     ImGui::Separator();
     ImGui::Text("Diagnostics");
     ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
     ImGui::Text("Use Mouse to look around, WASD to move.");
+
+    const auto& animator = GetSwimAnimator();
+    const auto& rigLines = animator.GetDebugLines();
+    const auto& rigBones = animator.GetAnimatedBones();
+    const auto& rigAngles = animator.GetLastAppliedAnglesDegrees();
+
+    ImGui::Separator();
+    ImGui::Text("Shark Rig Overlay");
+    ImGui::Text("Signed Turn Curvature: %.4f", signedCurvature);
+    const int staticLineCount = std::min<int>(static_cast<int>(rigLines.size()), 12);
+    for (int i = 0; i < staticLineCount; ++i) {
+        ImGui::TextUnformatted(rigLines[static_cast<std::size_t>(i)].c_str());
+    }
+
+    const int liveLineCount = static_cast<int>(std::min(rigBones.size(), rigAngles.size()));
+    for (int i = 0; i < liveLineCount; ++i) {
+        ImGui::Text("%s : %.2f deg", rigBones[static_cast<std::size_t>(i)].c_str(), rigAngles[static_cast<std::size_t>(i)]);
+    }
+
+    // Show per-bone debug info from the model (weighted centers and total weights)
+    ImGui::Separator();
+    ImGui::Text("Bone debug (name | totalWeight | center xyz)");
+    const auto boneDebug = shark.GetBoneDebugInfo();
+    const int boneShow = std::min<int>(static_cast<int>(boneDebug.size()), 24);
+    for (int i = 0; i < boneShow; ++i) {
+        const auto& b = boneDebug[static_cast<std::size_t>(i)];
+        ImGui::Text(
+            "%s | w=%.3f | c=(%.3f %.3f %.3f)",
+            b.name.c_str(),
+            b.totalWeight,
+            b.weightedCenter.x,
+            b.weightedCenter.y,
+            b.weightedCenter.z
+        );
+    }
+
+    ImGui::Separator();
+    ImGui::Text("Mesh debug (name | kind | attach | pivot xyz | centroid xyz | extent xyz)");
+    const auto meshDebug = shark.GetMeshDebugInfo();
+    const int meshShow = std::min<int>(static_cast<int>(meshDebug.size()), 48);
+    for (int i = 0; i < meshShow; ++i) {
+        const auto& m = meshDebug[static_cast<std::size_t>(i)];
+        const char* kindStr = m.kind == MeshMaterialKind::Body ? "Body" : (m.kind == MeshMaterialKind::Eye ? "Eye" : (m.kind == MeshMaterialKind::Teeth ? "Teeth" : "Unknown"));
+        const char* attachName = m.attachedBoneName.empty() ? "-" : m.attachedBoneName.c_str();
+        ImGui::Text(
+            "%s | %s | a %s | p %.3f %.3f %.3f | c %.3f %.3f %.3f | e %.3f %.3f %.3f",
+            m.name.c_str(),
+            kindStr,
+            attachName,
+            m.pivotTranslation.x,
+            m.pivotTranslation.y,
+            m.pivotTranslation.z,
+            m.centroid.x,
+            m.centroid.y,
+            m.centroid.z,
+            m.boundsExtent.x,
+            m.boundsExtent.y,
+            m.boundsExtent.z
+        );
+    }
+
+    ImGui::Separator();
+    if (ImGui::Button("Fix eye orientation (+90 X)")) {
+        const glm::mat4 rot = glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        // Apply to both 'eye' and 'teeth' meshes just in case
+        const_cast<Model&>(shark).ApplyLocalRotationToMeshes("eye", rot);
+        const_cast<Model&>(shark).ApplyLocalRotationToMeshes("teeth", rot);
+    }
     ImGui::End();
 }
 

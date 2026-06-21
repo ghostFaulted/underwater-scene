@@ -4,8 +4,10 @@ layout (location = 1) in vec2 aTexCoords;
 layout (location = 2) in vec3 aNormal;
 layout (location = 3) in vec3 aTangent;
 layout (location = 4) in vec3 aBitangent;
+layout (location = 5) in ivec4 aBoneIDs;
+layout (location = 6) in vec4 aBoneWeights;
 
-const int MAX_SPLINE_BONES = 16;
+const int MAX_BONES = 100;
 
 out vec2 TexCoords;
 out vec3 WorldPos;
@@ -16,31 +18,43 @@ uniform mat4 projection;
 uniform mat4 view;
 uniform mat4 model;
 uniform mat4 lightSpaceMatrix;
-uniform bool uEnableSplineSkinning;
-uniform int uSplineBoneCount;
-uniform float uSplineBodyMin;
-uniform float uSplineBodyMax;
-uniform mat4 uSplineBones[MAX_SPLINE_BONES];
+uniform bool uUseBoneSkinning;
+uniform mat4 uBoneTransforms[MAX_BONES];
+// For meshes without bone weights (eyes, teeth), apply node transform.
+uniform mat4 uNodeTransform = mat4(1.0);
+uniform int uMeshMaterialKind = 0;
 
-mat4 EvaluateSplineSkinMatrix() {
-    if (!uEnableSplineSkinning || uSplineBoneCount < 2) {
-        return mat4(1.0);
+mat4 BoneMatrix(int index) {
+    int clamped = clamp(index, 0, MAX_BONES - 1);
+    return uBoneTransforms[clamped];
+}
+
+mat4 EvaluateSkinningMatrix() {
+    // If skinning disabled globally or this mesh is not a skinned body mesh,
+    // fall back to the node transform (eyes, teeth, other non-skinned objects).
+    if (!uUseBoneSkinning || uMeshMaterialKind != 0) {
+        return uNodeTransform;
     }
 
-    float span = max(0.0001, uSplineBodyMax - uSplineBodyMin);
-    float normalized = clamp((aPos.z - uSplineBodyMin) / span, 0.0, 1.0);
-    float mapped = normalized * float(uSplineBoneCount - 1);
+    // If there are no bone weights, also use node transform as a fallback.
+    float weightSum = aBoneWeights.x + aBoneWeights.y + aBoneWeights.z + aBoneWeights.w;
+    if (weightSum <= 0.0001) {
+        return uNodeTransform;
+    }
 
-    int leftIndex = int(floor(mapped));
-    int rightIndex = min(leftIndex + 1, uSplineBoneCount - 1);
-    float alpha = mapped - float(leftIndex);
+    mat4 skin = mat4(0.0);
+    skin += BoneMatrix(aBoneIDs.x) * aBoneWeights.x;
+    skin += BoneMatrix(aBoneIDs.y) * aBoneWeights.y;
+    skin += BoneMatrix(aBoneIDs.z) * aBoneWeights.z;
+    skin += BoneMatrix(aBoneIDs.w) * aBoneWeights.w;
 
-    return mix(uSplineBones[leftIndex], uSplineBones[rightIndex], alpha);
+
+    return skin;
 }
 
 void main()
 {
-    mat4 skin = EvaluateSplineSkinMatrix();
+    mat4 skin = EvaluateSkinningMatrix();
     vec3 skinnedPos = vec3(skin * vec4(aPos, 1.0));
     vec3 skinnedTangent = normalize(mat3(skin) * aTangent);
     vec3 skinnedBitangent = normalize(mat3(skin) * aBitangent);

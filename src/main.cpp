@@ -17,7 +17,7 @@
 
 namespace {
 	GLFWwindow* CreateWindow() {
-		return glfwCreateWindow(1280, 720, "GRK: PBR + Camera", nullptr, nullptr);
+		return glfwCreateWindow(1280, 720, "GRK: Shark + Spline + Skinning", nullptr, nullptr);
 	}
 
 	bool InitializeOpenGL(GLFWwindow* window, AppState& appState) {
@@ -73,7 +73,7 @@ int main() {
 	auto shaders = LoadShaders();
 	Skybox skybox(GetSkyboxFaces());
 
-	Model submarine("assets/submarine/sub.obj");
+	Model shark("assets/shark/shark.fbx");
 	Model seabed("assets/ocean_floor/ocean_floor.obj");
 
 	auto textures = LoadTextures();
@@ -89,8 +89,8 @@ int main() {
 	std::cout << std::filesystem::current_path() << std::endl;
 
 	const bool useClosedTrajectory = true;
-	auto submarinePath = SplinePath(GenerateControlPoints(), useClosedTrajectory);
-	auto trajectoryDebugBuffers = CreateTrajectoryDebugBuffers(submarinePath, useClosedTrajectory);
+	auto sharkPath = SplinePath(GenerateControlPoints(), useClosedTrajectory);
+	auto trajectoryDebugBuffers = CreateTrajectoryDebugBuffers(sharkPath, useClosedTrajectory);
 
 	auto lastFrameTime = static_cast<float>(glfwGetTime());
 	auto shadowMap = CreateShadowMapResources(2048, 2048);
@@ -103,13 +103,13 @@ int main() {
 		UpdateCamera(appState, deltaTime);
 		BeginImGuiFrame();
 
-		const auto frameContext = BuildSceneRenderContext(appState, submarinePath, lightPositions[0], currentFrameTime);
+		const auto frameContext = BuildSceneRenderContext(appState, sharkPath, lightPositions[0], currentFrameTime);
 
-		RenderShadowPass(frameContext, shaders.shadow, submarine, seabed, shadowMap);
-		RenderPbrScene(frameContext, appState, shaders.pbr, submarine, seabed, textures, shadowMap, lightPositions, lightColors, 4);
+		RenderShadowPass(frameContext, shaders.shadow, appState, shark, seabed, shadowMap);
+		RenderPbrScene(frameContext, appState, shaders.pbr, shark, seabed, textures, shadowMap, lightPositions, lightColors, 4);
 		RenderSkyboxPass(frameContext, shaders.skybox, skybox);
 		RenderTrajectoryDebug(frameContext, shaders.lines, trajectoryDebugBuffers);
-		RenderControlPanel(appState);
+		RenderControlPanel(appState, shark, frameContext.signedTurnCurvature);
 
 		ImGui::Render();
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());

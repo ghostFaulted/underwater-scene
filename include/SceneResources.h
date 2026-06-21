@@ -32,7 +32,13 @@ struct ShaderSet {
 };
 
 struct TextureSet {
-    unsigned int submarineAlbedo = 0;
+    unsigned int sharkAlbedo = 0;
+    unsigned int sharkNormal = 0;
+    unsigned int sharkDetailNormal = 0;
+    unsigned int sharkEyeAlbedo = 0;
+    unsigned int sharkEyeNormal = 0;
+    unsigned int sharkTeethAlbedo = 0;
+    unsigned int sharkTeethNormal = 0;
     unsigned int seabedAlbedo = 0;
     unsigned int seabedNormal = 0;
 };
