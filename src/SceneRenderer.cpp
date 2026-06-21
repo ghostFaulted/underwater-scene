@@ -87,8 +87,17 @@ SceneRenderContext BuildSceneRenderContext(
     context.floorMatrix = glm::translate(context.floorMatrix, glm::vec3(0.0f, -15.0f, 0.0f));
     context.floorMatrix = glm::scale(context.floorMatrix, glm::vec3(10.0f));
 
+    glm::vec3 lightTarget(0.0f);
+    glm::vec3 lightDir = glm::normalize(appState.dirLightDirection);
+    glm::vec3 lightPos = lightTarget - lightDir * 30.0f;
+
+    glm::vec3 upVector = glm::vec3(0.0f, 1.0f, 0.0f);
+    if (std::abs(glm::dot(lightDir, upVector)) > 0.999f) {
+        upVector = glm::vec3(0.0f, 0.0f, 1.0f);
+    }
+
     const glm::mat4 lightProjection = glm::ortho(-30.0f, 30.0f, -30.0f, 30.0f, 1.0f, 100.0f);
-    const glm::mat4 lightView = glm::lookAt(lightPosition, glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    const glm::mat4 lightView = glm::lookAt(lightPos, lightTarget, upVector);
     context.lightSpaceMatrix = lightProjection * lightView;
 
     return context;
@@ -133,7 +142,7 @@ void RenderPbrScene(
     const std::size_t lightCount
 ) {
     glViewport(0, 0, appState.windowWidth, appState.windowHeight);
-    glClearColor(0.05f, 0.1f, 0.15f, 1.0f);
+    glClearColor(appState.waterColor.r, appState.waterColor.g, appState.waterColor.b, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     pbrShader.use();
@@ -172,6 +181,12 @@ void RenderPbrScene(
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, shadowMap.depthMap);
     pbrShader.setInt("shadowMap", 1);
+
+    pbrShader.setVec3("dirLightDirection", appState.dirLightDirection);
+    pbrShader.setVec3("dirLightColor", appState.dirLightColor);
+    pbrShader.setFloat("dirLightIntensity", appState.dirLightIntensity);
+    pbrShader.setVec3("waterColor", appState.waterColor);
+    pbrShader.setFloat("fogDensity", appState.fogDensity);
 
     for (std::size_t i = 0; i < lightCount; ++i) {
         pbrShader.setVec3("lightPositions[" + std::to_string(i) + "]", lightPositions[i]);
@@ -286,9 +301,18 @@ void RenderControlPanel(AppState& appState, const Model& shark, const float sign
     ImGui::SliderFloat("Teeth Roughness", &appState.teethRoughness, 0.0f, 1.0f);
 
     ImGui::Separator();
-    ImGui::Text("Environment (A14 / Fog)");
-    ImGui::SliderFloat("Current Intensity", &appState.flowMapIntensity, 0.0f, 2.0f);
+
+    ImGui::Text("Environment (Fog & Skybox)");
+    ImGui::ColorEdit3("Water Color", &appState.waterColor[0]);
+    ImGui::SliderFloat("Fog Density", &appState.fogDensity, 0.0f, 0.1f, "%.4f");
     ImGui::Separator();
+
+    ImGui::Text("Directional Light (Sun)");
+    ImGui::SliderFloat3("Direction", &appState.dirLightDirection[0], -1.0f, 1.0f);
+    ImGui::ColorEdit3("Light Color", &appState.dirLightColor[0]);
+    ImGui::SliderFloat("Intensity", &appState.dirLightIntensity, 0.0f, 50.0f);
+    ImGui::Separator();
+
     ImGui::Text("Shark controls");
     ImGui::Checkbox("Toggle Lights (F)", &appState.sharkLights);
     ImGui::Checkbox("Debug Material Kind Colors", &appState.debugMaterialKindView);
@@ -311,6 +335,7 @@ void RenderControlPanel(AppState& appState, const Model& shark, const float sign
     ImGui::SliderFloat("Teeth Rot Y (deg)", &appState.teethMeshRotationOffset.y, -180.0f, 180.0f);
     ImGui::SliderFloat("Teeth Rot Z (deg)", &appState.teethMeshRotationOffset.z, -180.0f, 180.0f);
     ImGui::Separator();
+
     ImGui::Text("Diagnostics");
     ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
     ImGui::Text("Use Mouse to look around, WASD to move.");
@@ -384,5 +409,3 @@ void RenderControlPanel(AppState& appState, const Model& shark, const float sign
     }
     ImGui::End();
 }
-
-
