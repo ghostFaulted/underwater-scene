@@ -42,6 +42,7 @@ struct TextureSet {
     unsigned int sharkTeethNormal = 0;
     unsigned int seabedAlbedo = 0;
     unsigned int seabedNormal = 0;
+    unsigned int seabedFlowMap = 0;
 };
 
 struct TrajectoryDebugBuffers {

@@ -174,7 +174,8 @@ TextureSet LoadTextures() {
         LoadTexture("assets/shark/greatwhiteshark_teeth.png"),        // sharkTeethAlbedo
         LoadTexture("assets/shark/greatwhiteshark_teeth_DDNDIF.png"), // sharkTeethNormal
         LoadTexture("assets/ocean_floor/model.jpg"),                  // seabedAlbedo
-        LoadTexture("assets/ocean_floor/seabed_normal.png")           // seabedNormal
+        LoadTexture("assets/ocean_floor/seabed_normal.png"),          // seabedNormal
+        LoadTexture("assets/ocean_floor/flowmap.jpg") 
     };
 }
 

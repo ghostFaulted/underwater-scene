@@ -82,7 +82,6 @@ SceneRenderContext BuildSceneRenderContext(
     // Scale shark model (FBX from 3ds Max is ~20x too large)
     context.sharkModelMatrix = glm::scale(context.sharkModelMatrix, glm::vec3(0.05f));
 
-
     context.floorMatrix = glm::mat4(1.0f);
     context.floorMatrix = glm::translate(context.floorMatrix, glm::vec3(0.0f, -15.0f, 0.0f));
     context.floorMatrix = glm::scale(context.floorMatrix, glm::vec3(10.0f));
@@ -188,12 +187,14 @@ void RenderPbrScene(
     pbrShader.setVec3("waterColor", appState.waterColor);
     pbrShader.setFloat("fogDensity", appState.fogDensity);
 
+    pbrShader.setFloat("uTime", context.animationTimeSeconds);
+    pbrShader.setFloat("flowMapIntensity", appState.flowMapIntensity);
+
     for (std::size_t i = 0; i < lightCount; ++i) {
         pbrShader.setVec3("lightPositions[" + std::to_string(i) + "]", lightPositions[i]);
         const glm::vec3 currentLightColor = appState.sharkLights ? lightColors[i] : glm::vec3(0.0f);
         pbrShader.setVec3("lightColors[" + std::to_string(i) + "]", currentLightColor);
     }
-
 
     pbrShader.setBool("useDetailNormalMap", appState.sharkUseDetailNormal);
     pbrShader.setFloat("detailNormalStrength", appState.sharkDetailNormalStrength);
@@ -213,6 +214,8 @@ void RenderPbrScene(
 
     pbrShader.setMat4("model", context.sharkModelMatrix);
     ApplySharkSkinning(pbrShader, shark, context);
+
+    pbrShader.setBool("useFlowMap", false);
     shark.Draw(pbrShader, &appState);
 
     pbrShader.setMat4("model", context.floorMatrix);
@@ -231,6 +234,12 @@ void RenderPbrScene(
     glActiveTexture(GL_TEXTURE2);
     glBindTexture(GL_TEXTURE_2D, textures.seabedNormal);
     pbrShader.setInt("normalMap", 2);
+
+    pbrShader.setBool("useFlowMap", true);
+    glActiveTexture(GL_TEXTURE9);
+    glBindTexture(GL_TEXTURE_2D, textures.seabedFlowMap);
+    pbrShader.setInt("flowMap", 9);
+
     seabed.Draw(pbrShader);
 }
 
@@ -319,6 +328,10 @@ void RenderControlPanel(AppState& appState, const Model& shark, const float sign
     ImGui::Checkbox("Debug Raw Albedo", &appState.debugRawAlbedoView);
 
     ImGui::Separator();
+    ImGui::Text("Environment (A14)");
+    ImGui::SliderFloat("Flow Map Intensity", &appState.flowMapIntensity, 0.0f, 2.0f);
+
+    ImGui::Separator();
     ImGui::Text("Eye/Teeth Position & Rotation Offsets");
     ImGui::SliderFloat("Eye X offset", &appState.eyeMeshPositionOffset.x, -5.0f, 5.0f);
     ImGui::SliderFloat("Eye Y offset", &appState.eyeMeshPositionOffset.y, -5.0f, 5.0f);
@@ -358,7 +371,6 @@ void RenderControlPanel(AppState& appState, const Model& shark, const float sign
         ImGui::Text("%s : %.2f deg", rigBones[static_cast<std::size_t>(i)].c_str(), rigAngles[static_cast<std::size_t>(i)]);
     }
 
-    // Show per-bone debug info from the model (weighted centers and total weights)
     ImGui::Separator();
     ImGui::Text("Bone debug (name | totalWeight | center xyz)");
     const auto boneDebug = shark.GetBoneDebugInfo();
@@ -403,7 +415,6 @@ void RenderControlPanel(AppState& appState, const Model& shark, const float sign
     ImGui::Separator();
     if (ImGui::Button("Fix eye orientation (+90 X)")) {
         const glm::mat4 rot = glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-        // Apply to both 'eye' and 'teeth' meshes just in case
         const_cast<Model&>(shark).ApplyLocalRotationToMeshes("eye", rot);
         const_cast<Model&>(shark).ApplyLocalRotationToMeshes("teeth", rot);
     }
