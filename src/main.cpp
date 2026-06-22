@@ -12,7 +12,6 @@
 #include "SplinePath.h"
 #include "Skybox.h"
 
-#include <filesystem>
 #include <iostream>
 
 namespace {
@@ -73,8 +72,8 @@ int main() {
 	auto shaders = LoadShaders();
 	Skybox skybox(GetSkyboxFaces());
 
-	Model shark("assets/shark/shark.fbx");
-	Model seabed("assets/ocean_floor/ocean_floor.obj");
+	Model shark(ResolveProjectPath("assets/shark/shark.fbx"));
+	Model seabed(ResolveProjectPath("assets/ocean_floor/ocean_floor.obj"));
 
 	auto textures = LoadTextures();
 
@@ -86,7 +85,7 @@ int main() {
 		glm::vec3(500.0f), glm::vec3(500.0f), glm::vec3(500.0f), glm::vec3(500.0f)
 	};
 
-	std::cout << std::filesystem::current_path() << std::endl;
+	std::cout << "[DEBUG] Project root resolved from: " << ResolveProjectPath("") << std::endl;
 
 	const bool useClosedTrajectory = true;
 	auto sharkPath = SplinePath(GenerateControlPoints(), useClosedTrajectory);

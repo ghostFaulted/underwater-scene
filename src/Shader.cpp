@@ -1,4 +1,5 @@
 #include "Shader.h"
+#include "SceneResources.h"
 #include <glm/gtc/type_ptr.hpp>
 
 Shader::Shader(const char* vertexPath, const char* fragmentPath) {
@@ -7,12 +8,15 @@ Shader::Shader(const char* vertexPath, const char* fragmentPath) {
     std::ifstream vShaderFile;
     std::ifstream fShaderFile;
 
+    const std::string resolvedVertexPath = ResolveProjectPath(vertexPath);
+    const std::string resolvedFragmentPath = ResolveProjectPath(fragmentPath);
+
     vShaderFile.exceptions(std::ifstream::failbit | std::ifstream::badbit);
     fShaderFile.exceptions(std::ifstream::failbit | std::ifstream::badbit);
 
     try {
-        vShaderFile.open(vertexPath);
-        fShaderFile.open(fragmentPath);
+        vShaderFile.open(resolvedVertexPath);
+        fShaderFile.open(resolvedFragmentPath);
         std::stringstream vShaderStream, fShaderStream;
         vShaderStream << vShaderFile.rdbuf();
         fShaderStream << fShaderFile.rdbuf();
@@ -22,7 +26,8 @@ Shader::Shader(const char* vertexPath, const char* fragmentPath) {
         fragmentCode = fShaderStream.str();
     }
     catch (std::ifstream::failure& e) {
-        std::cout << "ERROR::SHADER::FILE_NOT_SUCCESFULLY_READ" << std::endl;
+        std::cout << "ERROR::SHADER::FILE_NOT_SUCCESFULLY_READ: "
+                  << resolvedVertexPath << " / " << resolvedFragmentPath << std::endl;
     }
 
     const char* vShaderCode = vertexCode.c_str();

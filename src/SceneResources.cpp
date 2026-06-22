@@ -4,47 +4,57 @@
 #include <stb_image.h>
 
 #include <filesystem>
+#include <cctype>
 #include <iostream>
 #include <algorithm>
+#include <stdexcept>
+
+std::string ResolveProjectPath(const std::string& relativePath);
 
 namespace {
+    std::filesystem::path FindProjectRoot() {
+        const auto start = std::filesystem::current_path();
+
+        for (auto candidate = start; ; candidate = candidate.parent_path()) {
+            const bool hasProjectMarkers =
+                std::filesystem::exists(candidate / "CMakeLists.txt") &&
+                std::filesystem::exists(candidate / "assets") &&
+                std::filesystem::exists(candidate / "shaders") &&
+                std::filesystem::exists(candidate / "include") &&
+                std::filesystem::exists(candidate / "src");
+
+            if (hasProjectMarkers) {
+                return candidate;
+            }
+
+            if (candidate == candidate.parent_path()) {
+                break;
+            }
+        }
+
+        throw std::runtime_error("Unable to locate project root from current working directory");
+    }
+
+    const std::filesystem::path& ProjectRoot() {
+        static const std::filesystem::path root = FindProjectRoot();
+        return root;
+    }
+
     // Try to load texture from path, supporting common image formats.
     // For DDS and other specialized formats, print a warning and return white placeholder.
     unsigned int LoadTexture(const char* path) {
         unsigned int textureID = 0;
         glGenTextures(1, &textureID);
 
-        // Resolve path through fallbacks (current dir, parent dir, etc.)
-        std::string resolvedPath = path;
-        if (!std::filesystem::exists(resolvedPath)) {
-            std::string parentPath = std::string("../") + path;
-            if (std::filesystem::exists(parentPath)) {
-                resolvedPath = parentPath;
-            } else {
-                // Try sibling directories
-                std::filesystem::path p(path);
-                if (!p.parent_path().empty()) {
-                    // Last component is filename
-                    std::string filename = p.filename().string();
-                    std::string dir = p.parent_path().string();
-                    std::string altPath = std::string("../") + dir + "/" + filename;
-                    if (std::filesystem::exists(altPath)) {
-                        resolvedPath = altPath;
-                    }
-                }
-            }
-        }
+        const std::string resolvedPath = ResolveProjectPath(path);
 
         // Check file extension
-        std::string ext;
-        {
-            size_t lastDot = resolvedPath.find_last_of('.');
-            if (lastDot != std::string::npos) {
-                ext = resolvedPath.substr(lastDot);
-                // Convert to lowercase
-                std::transform(ext.begin(), ext.end(), ext.begin(),
-                    [](unsigned char c) { return std::tolower(c); });
-            }
+        std::string ext = std::filesystem::path(resolvedPath).extension().string();
+        std::transform(ext.begin(), ext.end(), ext.begin(),
+            [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+
+        if (ext.empty()) {
+            std::cout << "[FAIL] Texture has no extension: " << resolvedPath << std::endl;
         }
 
         // ── Try stbi_load for standard formats ────────────────────────────
@@ -74,20 +84,20 @@ namespace {
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
                 stbi_image_free(data);
-                std::cout << "[OK] Loaded: " << path
+                std::cout << "[OK] Loaded: " << resolvedPath
                           << " (" << width << "x" << height
                           << ", channels=" << nrComponents << ")" << std::endl;
                 return textureID;
             }
-            std::cout << "[FAIL] stbi_load failed for: " << path << std::endl;
+            std::cout << "[FAIL] stbi_load failed for: " << resolvedPath << std::endl;
         }
 
         // ── DDS and other formats: create white placeholder ────────────────
         if (ext == ".dds") {
-            std::cout << "[WARN] DDS not supported via stb_image. Using white placeholder for: " << path << std::endl;
+            std::cout << "[WARN] DDS not supported via stb_image. Using white placeholder for: " << resolvedPath << std::endl;
             std::cout << "       To use DDS textures, convert them to PNG or JPEG." << std::endl;
         } else {
-            std::cout << "[FAIL] Could not load texture: " << path << std::endl;
+            std::cout << "[FAIL] Could not load texture: " << resolvedPath << std::endl;
         }
 
         // Create 1x1 white placeholder texture
@@ -123,32 +133,25 @@ namespace {
     }
 }
 
-std::string ResolveShaderPath(const std::string& relativePath) {
-    // if (std::filesystem::exists(relativePath)) {
-    //     return relativePath;
-    // }
-
-    std::string parentPath = "../" + relativePath;
-    if (std::filesystem::exists(parentPath)) {
-        return parentPath;
+std::string ResolveProjectPath(const std::string& relativePath) {
+    const std::filesystem::path path(relativePath);
+    if (path.is_absolute()) {
+        return path.lexically_normal().string();
     }
 
-    return relativePath;
+    return (ProjectRoot() / path).lexically_normal().string();
 }
 
 ShaderSet LoadShaders() {
-    const std::string pbrVertPath = ResolveShaderPath("shaders/pbr.vert");
-    const std::string pbrFragPath = ResolveShaderPath("shaders/pbr.frag");
-    const std::string skyVertPath = ResolveShaderPath("shaders/skybox.vert");
-    const std::string skyFragPath = ResolveShaderPath("shaders/skybox.frag");
-    const std::string lineVertPath = ResolveShaderPath("shaders/lines.vert");
-    const std::string lineFragPath = ResolveShaderPath("shaders/lines.frag");
-    const std::string shadowVertPath = ResolveShaderPath("shaders/shadow.vert");
-    const std::string shadowFragPath = ResolveShaderPath("shaders/shadow.frag");
-    std::cout
-    << std::filesystem::absolute(pbrFragPath)
-    << std::endl;
-    std::cout << "[DEBUG] Shaders loaded successfully" << std::endl;
+    const std::string pbrVertPath = ResolveProjectPath("shaders/pbr.vert");
+    const std::string pbrFragPath = ResolveProjectPath("shaders/pbr.frag");
+    const std::string skyVertPath = ResolveProjectPath("shaders/skybox.vert");
+    const std::string skyFragPath = ResolveProjectPath("shaders/skybox.frag");
+    const std::string lineVertPath = ResolveProjectPath("shaders/lines.vert");
+    const std::string lineFragPath = ResolveProjectPath("shaders/lines.frag");
+    const std::string shadowVertPath = ResolveProjectPath("shaders/shadow.vert");
+    const std::string shadowFragPath = ResolveProjectPath("shaders/shadow.frag");
+    std::cout << "[DEBUG] Shaders loaded from project root: " << ProjectRoot() << std::endl;
     return {
         pbrVertPath,
         pbrFragPath,
@@ -177,12 +180,12 @@ TextureSet LoadTextures() {
 
 std::vector<std::string> GetSkyboxFaces() {
     return {
-        "assets/skybox/uw_rt.jpg",
-        "assets/skybox/uw_lf.jpg",
-        "assets/skybox/uw_up.jpg",
-        "assets/skybox/uw_dn.jpg",
-        "assets/skybox/uw_bk.jpg",
-        "assets/skybox/uw_ft.jpg"
+        ResolveProjectPath("assets/skybox/uw_rt.jpg"),
+        ResolveProjectPath("assets/skybox/uw_lf.jpg"),
+        ResolveProjectPath("assets/skybox/uw_up.jpg"),
+        ResolveProjectPath("assets/skybox/uw_dn.jpg"),
+        ResolveProjectPath("assets/skybox/uw_bk.jpg"),
+        ResolveProjectPath("assets/skybox/uw_ft.jpg")
     };
 }
 
@@ -316,4 +319,3 @@ void DestroyShadowMapResources(ShadowMapResources& resources) {
     glDeleteFramebuffers(1, &resources.framebuffer);
     resources = {};
 }
-

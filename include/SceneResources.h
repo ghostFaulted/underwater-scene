@@ -1,5 +1,6 @@
 #pragma once
 
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -66,7 +67,7 @@ struct ShadowMapResources {
     unsigned int height = 2048;
 };
 
-std::string ResolveShaderPath(const std::string& relativePath);
+std::string ResolveProjectPath(const std::string& relativePath);
 ShaderSet LoadShaders();
 TextureSet LoadTextures();
 std::vector<std::string> GetSkyboxFaces();
@@ -75,4 +76,3 @@ TrajectoryDebugBuffers CreateTrajectoryDebugBuffers(const SplinePath& splinePath
 void DestroyTrajectoryDebugBuffers(TrajectoryDebugBuffers& buffers);
 ShadowMapResources CreateShadowMapResources(unsigned int width, unsigned int height);
 void DestroyShadowMapResources(ShadowMapResources& resources);
-
