@@ -2,8 +2,10 @@
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
+#include <iostream>
 
 #include "AppState.h"
+#include "Raycaster.h"
 
 namespace {
     AppState* GetAppState(GLFWwindow* window) {
@@ -79,3 +81,32 @@ void framebuffer_size_callback(GLFWwindow* window, const int width, const int he
     appState->windowHeight = height;
 }
 
+void mouse_button_callback(GLFWwindow* window, const int button, const int action, const int mods) {
+    (void)mods;
+    AppState* appState = GetAppState(window);
+    if (appState == nullptr) return;
+
+    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS && !appState->cursorDisabled) {
+
+        double mouseX, mouseY;
+        glfwGetCursorPos(window, &mouseX, &mouseY);
+
+        const float aspect = static_cast<float>(appState->windowWidth) / static_cast<float>(appState->windowHeight);
+        const glm::mat4 projection = glm::perspective(glm::radians(45.0f), aspect, 0.1f, 100.0f);
+        const glm::mat4 view = appState->camera.GetViewMatrix();
+
+        Ray worldRay = Raycaster::ScreenToWorldRay(mouseX, mouseY, appState->windowWidth, appState->windowHeight, view, projection);
+
+        glm::mat4 invModel = glm::inverse(appState->currentSharkModelMatrix);
+
+        Ray localRay;
+        localRay.origin = glm::vec3(invModel * glm::vec4(worldRay.origin, 1.0f));
+        localRay.direction = glm::normalize(glm::vec3(invModel * glm::vec4(worldRay.direction, 0.0f)));
+
+        float hitDistance = 0.0f;
+        if (Raycaster::IntersectAABB(localRay, appState->sharkLocalAABB, hitDistance)) {
+            appState->sharkAngerTimer = 4.0f;
+            std::cout << "[RAYCAST] HIT! Shark is now fleeing. Hit distance (local): " << hitDistance << std::endl;
+        }
+    }
+}

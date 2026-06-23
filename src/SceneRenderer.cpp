@@ -57,7 +57,7 @@ void BeginImGuiFrame() {
 }
 
 SceneRenderContext BuildSceneRenderContext(
-    const AppState& appState,
+    AppState& appState,
     const SplinePath& sharkPath,
     const glm::vec3& lightPosition,
     const float currentFrameTime
@@ -69,18 +69,17 @@ SceneRenderContext BuildSceneRenderContext(
     context.view = appState.camera.GetViewMatrix();
     context.cameraPosition = appState.camera.GetPosition();
 
-    const float splineTime = std::fmod(currentFrameTime / 42.0f, 1.0f);
-    context.animationTimeSeconds = currentFrameTime;
+    const float splineTime = std::fmod(appState.sharkVirtualSplineTime / 42.0f, 1.0f);
+    context.animationTimeSeconds = appState.sharkVirtualAnimTime;
+    context.globalTimeSeconds = currentFrameTime;
     context.splineTime = splineTime;
     context.signedTurnCurvature = sharkPath.GetSignedCurvature(splineTime);
     context.sharkModelMatrix = sharkPath.GetTransform(splineTime);
 
-    // Корректирующий поворот на 180 градусов вокруг X оси для правильной ориентации
-    // (акула плывет "вверх ногами" без этого поворота)
     context.sharkModelMatrix = glm::rotate(context.sharkModelMatrix, glm::radians(180.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-
-    // Scale shark model (FBX from 3ds Max is ~20x too large)
     context.sharkModelMatrix = glm::scale(context.sharkModelMatrix, glm::vec3(0.05f));
+
+    appState.currentSharkModelMatrix = context.sharkModelMatrix;
 
     context.floorMatrix = glm::mat4(1.0f);
     context.floorMatrix = glm::translate(context.floorMatrix, glm::vec3(0.0f, -15.0f, 0.0f));
@@ -187,7 +186,7 @@ void RenderPbrScene(
     pbrShader.setVec3("waterColor", appState.waterColor);
     pbrShader.setFloat("fogDensity", appState.fogDensity);
 
-    pbrShader.setFloat("uTime", context.animationTimeSeconds);
+    pbrShader.setFloat("uTime", context.globalTimeSeconds);
     pbrShader.setFloat("flowMapIntensity", appState.flowMapIntensity);
 
     for (std::size_t i = 0; i < lightCount; ++i) {
@@ -207,7 +206,6 @@ void RenderPbrScene(
     pbrShader.setFloat("metallic", appState.metallic);
     pbrShader.setFloat("roughness", appState.roughness);
 
-    // Параметры для зубов
     pbrShader.setVec3("teethColor", appState.teethColor);
     pbrShader.setFloat("teethMetallic", appState.teethMetallic);
     pbrShader.setFloat("teethRoughness", appState.teethRoughness);

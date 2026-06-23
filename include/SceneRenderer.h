@@ -11,21 +11,22 @@
 #include "Skybox.h"
 
 struct SceneRenderContext {
-    glm::mat4 projection{1.0f};
-    glm::mat4 view{1.0f};
-    glm::vec3 cameraPosition{0.0f};
-    glm::mat4 sharkModelMatrix{1.0f};
+    glm::mat4 projection{ 1.0f };
+    glm::mat4 view{ 1.0f };
+    glm::vec3 cameraPosition{ 0.0f };
+    glm::mat4 sharkModelMatrix{ 1.0f };
     float animationTimeSeconds = 0.0f;
+    float globalTimeSeconds = 0.0f;
     float splineTime = 0.0f;
     float signedTurnCurvature = 0.0f;
-    glm::mat4 floorMatrix{1.0f};
-    glm::mat4 lightSpaceMatrix{1.0f};
+    glm::mat4 floorMatrix{ 1.0f };
+    glm::mat4 lightSpaceMatrix{ 1.0f };
 };
 
 void UpdateCamera(AppState& appState, float deltaTime);
 void BeginImGuiFrame();
 SceneRenderContext BuildSceneRenderContext(
-    const AppState& appState,
+    AppState& appState,
     const SplinePath& sharkPath,
     const glm::vec3& lightPosition,
     float currentFrameTime
@@ -53,4 +54,3 @@ void RenderPbrScene(
 void RenderSkyboxPass(const SceneRenderContext& context, Shader& skyboxShader, Skybox& skybox);
 void RenderTrajectoryDebug(const SceneRenderContext& context, Shader& linesShader, const TrajectoryDebugBuffers& buffers);
 void RenderControlPanel(AppState& appState, const Model& shark, const float signedCurvature);
-

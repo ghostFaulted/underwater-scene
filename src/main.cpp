@@ -25,6 +25,7 @@ namespace {
 		glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 		glfwSetCursorPosCallback(window, cursor_position_callback);
 		glfwSetKeyCallback(window, key_callback);
+		glfwSetMouseButtonCallback(window, mouse_button_callback);
 		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
 		if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
@@ -98,6 +99,18 @@ int main() {
 		const auto currentFrameTime = static_cast<float>(glfwGetTime());
 		const float deltaTime = currentFrameTime - lastFrameTime;
 		lastFrameTime = currentFrameTime;
+
+		float currentSpeedMultiplier = 1.0f;
+		float currentAnimMultiplier = 1.0f;
+
+		if (appState.sharkAngerTimer > 0.0f) {
+			appState.sharkAngerTimer -= deltaTime;
+			currentSpeedMultiplier = 3.5f;
+			currentAnimMultiplier = 4.0f;
+		}
+
+		appState.sharkVirtualSplineTime += deltaTime * currentSpeedMultiplier;
+		appState.sharkVirtualAnimTime += deltaTime * currentAnimMultiplier;
 
 		UpdateCamera(appState, deltaTime);
 		BeginImGuiFrame();
