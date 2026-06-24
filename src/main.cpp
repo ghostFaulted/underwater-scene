@@ -78,14 +78,6 @@ int main() {
 
 	auto textures = LoadTextures();
 
-	glm::vec3 lightPositions[] = {
-		glm::vec3(-20.0f,  20.0f, 20.0f), glm::vec3(20.0f,  20.0f, 20.0f),
-		glm::vec3(-20.0f, -20.0f, 20.0f), glm::vec3(20.0f, -20.0f, 20.0f)
-	};
-	glm::vec3 lightColors[] = {
-		glm::vec3(500.0f), glm::vec3(500.0f), glm::vec3(500.0f), glm::vec3(500.0f)
-	};
-
 	std::cout << std::filesystem::current_path() << std::endl;
 
 	const bool useClosedTrajectory = true;
@@ -93,7 +85,9 @@ int main() {
 	auto trajectoryDebugBuffers = CreateTrajectoryDebugBuffers(sharkPath, useClosedTrajectory);
 
 	auto lastFrameTime = static_cast<float>(glfwGetTime());
-	auto shadowMap = CreateShadowMapResources(2048, 2048);
+	// Separate shadow maps for sun (directional) and spotlight
+	auto sunShadow = CreateShadowMapResources(2048, 2048);
+	auto spotShadow = CreateShadowMapResources(4096, 4096);
 
 	while (!glfwWindowShouldClose(window)) {
 		const auto currentFrameTime = static_cast<float>(glfwGetTime());
@@ -103,13 +97,19 @@ int main() {
 		UpdateCamera(appState, deltaTime);
 		BeginImGuiFrame();
 
-		const auto frameContext = BuildSceneRenderContext(appState, sharkPath, lightPositions[0], currentFrameTime);
+		const auto frameContext = BuildSceneRenderContext(appState, sharkPath, currentFrameTime);
 
-		RenderShadowPass(frameContext, shaders.shadow, appState, shark, seabed, shadowMap);
-		RenderPbrScene(frameContext, appState, shaders.pbr, shark, seabed, textures, shadowMap, lightPositions, lightColors, 4);
+		// Render shadow maps: sun (directional) and camera spotlight
+		RenderSunShadowPass(frameContext, shaders.shadow, appState, shark, seabed, sunShadow);
+		if (appState.spotlightEnabled || appState.debugSpotShadowMapView) {
+			RenderSpotShadowPass(frameContext, shaders.shadow, appState, shark, seabed, spotShadow);
+		}
+
+		// Render PBR scene with both shadow maps
+		RenderPbrScene(frameContext, appState, shaders.pbr, shark, seabed, textures, sunShadow, spotShadow);
 		RenderSkyboxPass(frameContext, shaders.skybox, skybox);
 		RenderTrajectoryDebug(frameContext, shaders.lines, trajectoryDebugBuffers);
-		RenderControlPanel(appState, shark, frameContext.signedTurnCurvature);
+		RenderControlPanel(appState, shark, frameContext.signedTurnCurvature, sunShadow, spotShadow);
 
 		ImGui::Render();
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -120,7 +120,8 @@ int main() {
 
 	ShutdownImGui();
 	DestroyTrajectoryDebugBuffers(trajectoryDebugBuffers);
-	DestroyShadowMapResources(shadowMap);
+	DestroyShadowMapResources(sunShadow);
+	DestroyShadowMapResources(spotShadow);
 
 	glfwDestroyWindow(window);
 	glfwTerminate();

@@ -27,12 +27,20 @@ struct AppState {
     float teethMetallic = 0.05f;
 
     float flowMapIntensity = 0.5f;
-    bool sharkLights = true;
+    bool spotlightEnabled = true;
+    glm::vec3 spotColor = glm::vec3(1.0f);
+    float spotIntensity = 10.0f;
+    float innerCutoff = 12.5f;
+    float outerCutoff = 17.5f;
     bool cursorDisabled = true;
 
     // Debug visualization for material and texture verification.
     bool debugMaterialKindView = false;
     bool debugRawAlbedoView = false;
+    bool debugSpotOnlyView = false;
+    bool debugSpotShadowMapView = false;
+    bool debugSpotShadowCompareView = false;
+    bool debugSpotCenterProbeView = false;
 
     // Manual mesh offset adjustment (for eye/teeth positioning).
     glm::vec3 eyeMeshPositionOffset{0.0f};

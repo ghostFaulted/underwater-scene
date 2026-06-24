@@ -54,8 +54,9 @@ void key_callback(GLFWwindow* window, const int key, const int scancode, const i
     }
 
     if (key == GLFW_KEY_F && action == GLFW_PRESS) {
-        appState->sharkLights = !appState->sharkLights;
+        appState->spotlightEnabled = !appState->spotlightEnabled;
     }
+
 
     if (key >= 0 && key < 1024) {
         if (action == GLFW_PRESS) {

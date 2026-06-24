@@ -12,12 +12,14 @@ const int MAX_BONES = 100;
 out vec2 TexCoords;
 out vec3 WorldPos;
 out mat3 TBN; 
-out vec4 FragPosLightSpace;
+out vec4 FragPosSunSpace;
+out vec4 FragPosSpotSpace;
 
 uniform mat4 projection;
 uniform mat4 view;
 uniform mat4 model;
-uniform mat4 lightSpaceMatrix;
+uniform mat4 sunLightMatrix;
+uniform mat4 spotLightMatrix;
 uniform bool uUseBoneSkinning;
 uniform mat4 uBoneTransforms[MAX_BONES];
 // For meshes without bone weights (eyes, teeth), apply node transform.
@@ -68,6 +70,7 @@ void main()
     vec3 N = normalize(mat3(model) * skinnedNormal);
     TBN = mat3(T, B, N);
 
-    FragPosLightSpace = lightSpaceMatrix * vec4(WorldPos, 1.0); 
+    FragPosSunSpace = sunLightMatrix * vec4(WorldPos, 1.0);
+    FragPosSpotSpace = spotLightMatrix * vec4(WorldPos, 1.0);
     gl_Position = projection * view * vec4(WorldPos, 1.0);
 }
