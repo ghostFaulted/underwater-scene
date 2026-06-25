@@ -2,7 +2,7 @@
 
 ## Skład grupy
 1. Yaroslav Zamorskyi s498784
-2. Maksim Sysoyeu s
+2. Maksim Sysoyeu s498775
 3. Kiryl Kavaliou s
 
 ## Metody do wyboru
