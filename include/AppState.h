@@ -30,7 +30,7 @@ struct AppState {
     float flowMapIntensity = 0.5f;
     bool spotlightEnabled = true;
     glm::vec3 spotColor = glm::vec3(1.0f);
-    float spotIntensity = 10.0f;
+    float spotIntensity = 1000.0f;
     float innerCutoff = 12.5f;
     float outerCutoff = 17.5f;
     bool cursorDisabled = true;
@@ -64,4 +64,12 @@ struct AppState {
         glm::vec3(-150.0f, -80.0f, -300.0f), 
         glm::vec3(150.0f, 150.0f, 300.0f)    
     };
+
+    bool isExcursionMode = true;
+    float excursionVirtualTime = 0.0f;
+    glm::mat4 currentSubmarineMatrix{ 1.0f };
+
+    float subMetallic = 0.8f;     
+    float subRoughness = 0.25f;    
+    glm::vec3 subAlbedoColor = glm::vec3(1.0f, 1.0f, 1.0f);
 };

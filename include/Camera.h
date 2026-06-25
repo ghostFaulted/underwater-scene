@@ -15,6 +15,7 @@ public:
 
     void ProcessMouse(float deltaX, float deltaY);
     void ProcessKeyboard(bool moveForward, bool moveBackward, bool moveLeft, bool moveRight, float deltaTime);
+    void SetPosition(const glm::vec3& newPosition);
 
     [[nodiscard]] glm::mat4 GetViewMatrix() const;
 

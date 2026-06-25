@@ -24,6 +24,7 @@ struct SceneRenderContext {
     glm::mat4 spotLightMatrix{ 1.0f };
     glm::vec3 spotPosition{ 0.0f };
     glm::vec3 spotDirection{ 0.0f };
+    glm::mat4 submarineMatrix{ 1.0f }; 
 };
 
 void UpdateCamera(AppState& appState, float deltaTime);
@@ -39,6 +40,7 @@ void RenderShadowPass(
     const AppState& appState,
     Model& shark,
     Model& seabed,
+    Model& submarine,
     const ShadowMapResources& shadowMap
 );
 void RenderSunShadowPass(
@@ -47,6 +49,7 @@ void RenderSunShadowPass(
     const AppState& appState,
     Model& shark,
     Model& seabed,
+    Model& submarine,
     const ShadowMapResources& sunShadow
 );
 
@@ -56,6 +59,7 @@ void RenderSpotShadowPass(
     const AppState& appState,
     Model& shark,
     Model& seabed,
+    Model& submarine,
     const ShadowMapResources& spotShadow
 );
 void RenderPbrScene(
@@ -64,6 +68,7 @@ void RenderPbrScene(
     Shader& pbrShader,
     Model& shark,
     Model& seabed,
+    Model& submarine,
     const TextureSet& textures,
     const ShadowMapResources& sunShadow,
     const ShadowMapResources& spotShadow

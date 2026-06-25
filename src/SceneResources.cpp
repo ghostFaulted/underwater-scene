@@ -175,7 +175,8 @@ TextureSet LoadTextures() {
         LoadTexture("assets/shark/greatwhiteshark_teeth_DDNDIF.png"), // sharkTeethNormal
         LoadTexture("assets/ocean_floor/model.jpg"),                  // seabedAlbedo
         LoadTexture("assets/ocean_floor/seabed_normal.png"),          // seabedNormal
-        LoadTexture("assets/ocean_floor/flowmap.jpg") 
+        LoadTexture("assets/ocean_floor/flowmap.jpg"), 
+        LoadTexture("assets/submarine/ger_sub_diffuse.png")
     };
 }
 
@@ -321,4 +322,17 @@ void DestroyShadowMapResources(ShadowMapResources& resources) {
     glDeleteTextures(1, &resources.depthMap);
     glDeleteFramebuffers(1, &resources.framebuffer);
     resources = {};
+}
+
+std::vector<glm::vec3> GenerateSubmarinePath() {
+    return {
+        {0.0f, 0.0f, 30.0f},
+        {20.0f, 2.0f, 15.0f},
+        {25.0f, -1.0f, -5.0f},
+        {10.0f, -3.0f, -20.0f},
+        {-10.0f, -4.0f, -20.0f},
+        {-25.0f, 0.0f, -5.0f},
+        {-20.0f, 3.0f, 15.0f},
+        {0.0f, 0.0f, 30.0f}
+    };
 }

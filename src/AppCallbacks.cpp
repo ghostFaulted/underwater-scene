@@ -59,6 +59,10 @@ void key_callback(GLFWwindow* window, const int key, const int scancode, const i
         appState->spotlightEnabled = !appState->spotlightEnabled;
     }
 
+    if (key == GLFW_KEY_E && action == GLFW_PRESS) {
+        appState->isExcursionMode = !appState->isExcursionMode;
+    }
+
 
     if (key >= 0 && key < 1024) {
         if (action == GLFW_PRESS) {

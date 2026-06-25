@@ -42,7 +42,8 @@ struct TextureSet {
     unsigned int sharkTeethNormal = 0;
     unsigned int seabedAlbedo = 0;
     unsigned int seabedNormal = 0;
-    unsigned int seabedFlowMap = 0;
+    unsigned int seabedFlowMap = 0; 
+    unsigned int submarineAlbedo = 0;
 };
 
 struct TrajectoryDebugBuffers {
@@ -77,3 +78,4 @@ TrajectoryDebugBuffers CreateTrajectoryDebugBuffers(const SplinePath& splinePath
 void DestroyTrajectoryDebugBuffers(TrajectoryDebugBuffers& buffers);
 ShadowMapResources CreateShadowMapResources(unsigned int width, unsigned int height);
 void DestroyShadowMapResources(ShadowMapResources& resources);
+std::vector<glm::vec3> GenerateSubmarinePath();

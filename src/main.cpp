@@ -75,6 +75,7 @@ int main() {
 
 	Model shark(ResolveProjectPath("assets/shark/shark.fbx"));
 	Model seabed(ResolveProjectPath("assets/ocean_floor/ocean_floor.obj"));
+	Model submarine(ResolveProjectPath("assets/submarine/sub.obj"));
 
 	auto textures = LoadTextures();
 
@@ -84,8 +85,9 @@ int main() {
 	auto sharkPath = SplinePath(GenerateControlPoints(), useClosedTrajectory);
 	auto trajectoryDebugBuffers = CreateTrajectoryDebugBuffers(sharkPath, useClosedTrajectory);
 
+	auto submarinePath = SplinePath(GenerateSubmarinePath(), true);
+
 	auto lastFrameTime = static_cast<float>(glfwGetTime());
-	// Separate shadow maps for sun (directional) and spotlight
 	auto sunShadow = CreateShadowMapResources(2048, 2048);
 	auto spotShadow = CreateShadowMapResources(4096, 4096);
 
@@ -106,19 +108,50 @@ int main() {
 		appState.sharkVirtualSplineTime += deltaTime * currentSpeedMultiplier;
 		appState.sharkVirtualAnimTime += deltaTime * currentAnimMultiplier;
 
-		UpdateCamera(appState, deltaTime);
+		appState.excursionVirtualTime += deltaTime * 0.5f;
+		float subSplineTime = std::fmod(appState.excursionVirtualTime / 30.0f, 1.0f);
+
+		glm::mat4 rawSubTransform = submarinePath.GetTransform(subSplineTime);
+
+		glm::vec3 subPos = glm::vec3(rawSubTransform[3]); 
+		glm::vec3 splineForward = glm::normalize(glm::vec3(rawSubTransform[2])); 
+
+		glm::vec3 flatForward = glm::normalize(glm::vec3(splineForward.x, 0.0f, splineForward.z));
+
+		glm::vec3 realisticForward = glm::normalize(glm::mix(flatForward, splineForward, 0.15f));
+
+		glm::vec3 worldUp = glm::vec3(0.0f, 1.0f, 0.0f);
+		glm::vec3 subRight = glm::normalize(glm::cross(worldUp, realisticForward));
+		glm::vec3 subUp = glm::cross(realisticForward, subRight);
+
+		glm::mat4 subTransform = glm::mat4(1.0f);
+		subTransform[0] = glm::vec4(subRight, 0.0f);        
+		subTransform[1] = glm::vec4(subUp, 0.0f);           
+		subTransform[2] = glm::vec4(realisticForward, 0.0f); 
+		subTransform[3] = glm::vec4(subPos, 1.0f);        
+
+		subTransform = glm::scale(subTransform, glm::vec3(5.0f));
+
+		appState.currentSubmarineMatrix = subTransform;
+
+		if (appState.isExcursionMode) {
+			glm::vec3 cameraOffset = glm::vec3(0.0f, 6.0f, 0.0f);
+			appState.camera.SetPosition(subPos + cameraOffset);
+		}
+		else {
+			UpdateCamera(appState, deltaTime);
+		}
+
 		BeginImGuiFrame();
 
 		const auto frameContext = BuildSceneRenderContext(appState, sharkPath, currentFrameTime);
 
-		// Render shadow maps: sun (directional) and camera spotlight
-		RenderSunShadowPass(frameContext, shaders.shadow, appState, shark, seabed, sunShadow);
+		RenderSunShadowPass(frameContext, shaders.shadow, appState, shark, seabed, submarine, sunShadow);
 		if (appState.spotlightEnabled || appState.debugSpotShadowMapView) {
-			RenderSpotShadowPass(frameContext, shaders.shadow, appState, shark, seabed, spotShadow);
+			RenderSpotShadowPass(frameContext, shaders.shadow, appState, shark, seabed, submarine, spotShadow);
 		}
 
-		// Render PBR scene with both shadow maps
-		RenderPbrScene(frameContext, appState, shaders.pbr, shark, seabed, textures, sunShadow, spotShadow);
+		RenderPbrScene(frameContext, appState, shaders.pbr, shark, seabed, submarine, textures, sunShadow, spotShadow);
 		RenderSkyboxPass(frameContext, shaders.skybox, skybox);
 		RenderTrajectoryDebug(frameContext, shaders.lines, trajectoryDebugBuffers);
 		RenderControlPanel(appState, shark, frameContext.signedTurnCurvature, sunShadow, spotShadow);
