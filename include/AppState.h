@@ -1,8 +1,10 @@
 #pragma once
 
 #include <glm/vec3.hpp>
+#include <glm/mat4x4.hpp>
 
 #include "Camera.h"
+#include "Raycaster.h"
 
 struct AppState {
     Camera camera{ glm::vec3(0.0f, 5.0f, 25.0f) };
@@ -21,24 +23,29 @@ struct AppState {
     float sharkDetailNormalStrength = 0.12f;
     bool sharkUseDetailNormal = false;
 
-    // Контроль материалов специальных частей акулы
-    glm::vec3 teethColor = glm::vec3(0.95f, 0.95f, 0.95f);  // Почти белый для зубов
+    glm::vec3 teethColor = glm::vec3(0.95f, 0.95f, 0.95f);
     float teethRoughness = 0.3f;
     float teethMetallic = 0.05f;
 
     float flowMapIntensity = 0.5f;
-    bool sharkLights = true;
+    bool spotlightEnabled = true;
+    glm::vec3 spotColor = glm::vec3(1.0f);
+    float spotIntensity = 10.0f;
+    float innerCutoff = 12.5f;
+    float outerCutoff = 17.5f;
     bool cursorDisabled = true;
 
-    // Debug visualization for material and texture verification.
     bool debugMaterialKindView = false;
     bool debugRawAlbedoView = false;
+    bool debugSpotOnlyView = false;
+    bool debugSpotShadowMapView = false;
+    bool debugSpotShadowCompareView = false;
+    bool debugSpotCenterProbeView = false;
 
-    // Manual mesh offset adjustment (for eye/teeth positioning).
-    glm::vec3 eyeMeshPositionOffset{0.0f};
-    glm::vec3 eyeMeshRotationOffset{0.0f};
-    glm::vec3 teethMeshPositionOffset{0.0f};
-    glm::vec3 teethMeshRotationOffset{0.0f};
+    glm::vec3 eyeMeshPositionOffset{ 0.0f };
+    glm::vec3 eyeMeshRotationOffset{ 0.0f };
+    glm::vec3 teethMeshPositionOffset{ 0.0f };
+    glm::vec3 teethMeshRotationOffset{ 0.0f };
 
     glm::vec3 waterColor = glm::vec3(0.05f, 0.15f, 0.25f);
     float fogDensity = 0.02f;
@@ -46,4 +53,15 @@ struct AppState {
     glm::vec3 dirLightDirection = glm::vec3(-0.5f, -1.0f, -0.5f);
     glm::vec3 dirLightColor = glm::vec3(1.0f, 0.95f, 0.8f);
     float dirLightIntensity = 10.0f;
+
+    float sharkAngerTimer = 0.0f;
+    float sharkVirtualSplineTime = 0.0f;
+    float sharkVirtualAnimTime = 0.0f;
+
+    glm::mat4 currentSharkModelMatrix{ 1.0f };
+
+    AABB sharkLocalAABB = {
+        glm::vec3(-150.0f, -80.0f, -300.0f), 
+        glm::vec3(150.0f, 150.0f, 300.0f)    
+    };
 };
