@@ -86,6 +86,7 @@ int main() {
 	auto trajectoryDebugBuffers = CreateTrajectoryDebugBuffers(sharkPath, useClosedTrajectory);
 
 	auto submarinePath = SplinePath(GenerateSubmarinePath(), true);
+	auto subTrajectoryDebugBuffers = CreateTrajectoryDebugBuffers(submarinePath, true);
 
 	auto lastFrameTime = static_cast<float>(glfwGetTime());
 	auto sunShadow = CreateShadowMapResources(2048, 2048);
@@ -153,7 +154,12 @@ int main() {
 
 		RenderPbrScene(frameContext, appState, shaders.pbr, shark, seabed, submarine, textures, sunShadow, spotShadow);
 		RenderSkyboxPass(frameContext, shaders.skybox, skybox);
-		RenderTrajectoryDebug(frameContext, shaders.lines, trajectoryDebugBuffers);
+		if (appState.showSharkSpline) {
+			RenderTrajectoryDebug(frameContext, shaders.lines, trajectoryDebugBuffers);
+		}
+		if (appState.showSubmarineSpline) {
+			RenderTrajectoryDebug(frameContext, shaders.lines, subTrajectoryDebugBuffers);
+		}
 		RenderControlPanel(appState, shark, frameContext.signedTurnCurvature, sunShadow, spotShadow);
 
 		ImGui::Render();
@@ -165,6 +171,7 @@ int main() {
 
 	ShutdownImGui();
 	DestroyTrajectoryDebugBuffers(trajectoryDebugBuffers);
+	DestroyTrajectoryDebugBuffers(subTrajectoryDebugBuffers);
 	DestroyShadowMapResources(sunShadow);
 	DestroyShadowMapResources(spotShadow);
 

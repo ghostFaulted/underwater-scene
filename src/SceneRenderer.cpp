@@ -65,7 +65,7 @@ SceneRenderContext BuildSceneRenderContext(
     SceneRenderContext context{};
 
     const float aspect = static_cast<float>(appState.windowWidth) / static_cast<float>(appState.windowHeight);
-    context.projection = glm::perspective(glm::radians(45.0f), aspect, 0.1f, 100.0f);
+    context.projection = glm::perspective(glm::radians(45.0f), aspect, 0.1f, 300.0f);
     context.view = appState.camera.GetViewMatrix();
     context.cameraPosition = appState.camera.GetPosition();
 
@@ -511,6 +511,8 @@ void RenderControlPanel(
     ImGui::Separator();
 
     ImGui::Text("Diagnostics");
+    ImGui::Checkbox("Show Shark Spline", &appState.showSharkSpline);       
+    ImGui::Checkbox("Show Submarine Spline", &appState.showSubmarineSpline);
     ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
     ImGui::Text("Use Mouse to look around, WASD to move.");
 

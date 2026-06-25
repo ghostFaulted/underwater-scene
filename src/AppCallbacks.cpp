@@ -97,7 +97,7 @@ void mouse_button_callback(GLFWwindow* window, const int button, const int actio
         glfwGetCursorPos(window, &mouseX, &mouseY);
 
         const float aspect = static_cast<float>(appState->windowWidth) / static_cast<float>(appState->windowHeight);
-        const glm::mat4 projection = glm::perspective(glm::radians(45.0f), aspect, 0.1f, 100.0f);
+        const glm::mat4 projection = glm::perspective(glm::radians(45.0f), aspect, 0.1f, 300.0f);
         const glm::mat4 view = appState->camera.GetViewMatrix();
 
         Ray worldRay = Raycaster::ScreenToWorldRay(mouseX, mouseY, appState->windowWidth, appState->windowHeight, view, projection);

@@ -57,6 +57,7 @@ struct AppState {
     float sharkAngerTimer = 0.0f;
     float sharkVirtualSplineTime = 0.0f;
     float sharkVirtualAnimTime = 0.0f;
+    bool showSharkSpline = false;
 
     glm::mat4 currentSharkModelMatrix{ 1.0f };
 
@@ -72,4 +73,5 @@ struct AppState {
     float subMetallic = 0.8f;     
     float subRoughness = 0.25f;    
     glm::vec3 subAlbedoColor = glm::vec3(1.0f, 1.0f, 1.0f);
+    bool showSubmarineSpline = false;
 };

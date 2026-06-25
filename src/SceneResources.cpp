@@ -193,26 +193,29 @@ std::vector<std::string> GetSkyboxFaces() {
 
 std::vector<glm::vec3> GenerateControlPoints() {
     return {
-        {0.0f, -2.0f, 0.0f},
-        {5.0f, -1.0f, -5.0f},
-        {10.0f, -4.0f, -10.0f},
-        {15.0f, -8.0f, -15.0f},
-        {20.0f, -12.0f, -10.0f},
-        {25.0f, -15.0f, 0.0f},
-        {20.0f, -12.0f, 10.0f},
-        {10.0f, -6.0f, 20.0f},
-        {0.0f, -2.0f, 25.0f},
-        {-10.0f, -5.0f, 20.0f},
-        {-20.0f, -10.0f, 10.0f},
-        {-25.0f, -14.0f, 0.0f},
-        {-20.0f, -10.0f, -10.0f},
-        {-10.0f, -4.0f, -20.0f},
-        {0.0f, 0.0f, -25.0f},
-        {10.0f, 3.0f, -15.0f},
-        {15.0f, 6.0f, -5.0f},
-        {10.0f, 4.0f, 5.0f},
-        {5.0f, 1.0f, 8.0f},
-        {2.0f, -1.0f, 4.0f}
+        { 27.0f,  3.0f,  45.0f},  
+        { 45.0f,  2.0f,  15.0f},  
+        { 42.0f,  4.0f, -12.0f},  
+        { 50.0f,  2.0f, -50.0f},  
+
+        {  0.0f,  1.0f, -52.0f}, 
+        {-32.0f, 15.0f, -32.0f},  
+        {-22.0f, 0.0f,  10.0f}, 
+        {-18.0f, 10.0f,  32.0f}   
+    };
+}
+
+std::vector<glm::vec3> GenerateSubmarinePath() {
+    return {
+        {  0.0f,  10.0f,  55.0f},  
+        { 40.0f,   6.0f,  40.0f},  
+        { 55.0f,  6.0f,   0.0f},  
+        { 40.0f,   7.0f, -45.0f}, 
+
+        {  0.0f,  -8.0f, -60.0f},  
+        {-45.0f,   4.0f, -40.0f},  
+        {-60.0f,   2.0f,   0.0f},  
+        {-40.0f,  12.0f,  40.0f}   
     };
 }
 
@@ -322,17 +325,4 @@ void DestroyShadowMapResources(ShadowMapResources& resources) {
     glDeleteTextures(1, &resources.depthMap);
     glDeleteFramebuffers(1, &resources.framebuffer);
     resources = {};
-}
-
-std::vector<glm::vec3> GenerateSubmarinePath() {
-    return {
-        {0.0f, 0.0f, 30.0f},
-        {20.0f, 2.0f, 15.0f},
-        {25.0f, -1.0f, -5.0f},
-        {10.0f, -3.0f, -20.0f},
-        {-10.0f, -4.0f, -20.0f},
-        {-25.0f, 0.0f, -5.0f},
-        {-20.0f, 3.0f, 15.0f},
-        {0.0f, 0.0f, 30.0f}
-    };
 }
