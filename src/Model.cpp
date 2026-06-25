@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <filesystem>
 #include <iostream>
 #include <limits>
 #include <array>
@@ -236,7 +237,7 @@ void Model::loadModel(const std::string &path) {
             aiProcess_CalcTangentSpace |
             aiProcess_LimitBoneWeights;
 
-    const aiScene *scene = importer.ReadFile("../" + path, importFlags);
+    const aiScene *scene = importer.ReadFile(path, importFlags);
 
     if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode) {
         std::cerr << "ERROR::ASSIMP:: " << importer.GetErrorString() << std::endl;
@@ -255,7 +256,7 @@ void Model::loadModel(const std::string &path) {
                 << " | Bones: " << mesh->mNumBones << std::endl;
     }
 
-    directory = path.substr(0, path.find_last_of('/'));
+    directory = std::filesystem::path(path).parent_path().string();
     globalInverseTransform = glm::inverse(AssimpToGlm(scene->mRootNode->mTransformation));
     ExtractNodeHierarchy(rootNode, scene->mRootNode);
     processNode(scene->mRootNode, scene, glm::mat4(1.0f));

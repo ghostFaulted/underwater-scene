@@ -12,7 +12,6 @@
 #include "SplinePath.h"
 #include "Skybox.h"
 
-#include <filesystem>
 #include <iostream>
 
 namespace {
@@ -26,6 +25,7 @@ namespace {
 		glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 		glfwSetCursorPosCallback(window, cursor_position_callback);
 		glfwSetKeyCallback(window, key_callback);
+		glfwSetMouseButtonCallback(window, mouse_button_callback);
 		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
 		if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
@@ -73,12 +73,12 @@ int main() {
 	auto shaders = LoadShaders();
 	Skybox skybox(GetSkyboxFaces());
 
-	Model shark("assets/shark/shark.fbx");
-	Model seabed("assets/ocean_floor/ocean_floor.obj");
+	Model shark(ResolveProjectPath("assets/shark/shark.fbx"));
+	Model seabed(ResolveProjectPath("assets/ocean_floor/ocean_floor.obj"));
 
 	auto textures = LoadTextures();
 
-	std::cout << std::filesystem::current_path() << std::endl;
+	std::cout << "[DEBUG] Project root resolved from: " << ResolveProjectPath("") << std::endl;
 
 	const bool useClosedTrajectory = true;
 	auto sharkPath = SplinePath(GenerateControlPoints(), useClosedTrajectory);
@@ -93,6 +93,18 @@ int main() {
 		const auto currentFrameTime = static_cast<float>(glfwGetTime());
 		const float deltaTime = currentFrameTime - lastFrameTime;
 		lastFrameTime = currentFrameTime;
+
+		float currentSpeedMultiplier = 1.0f;
+		float currentAnimMultiplier = 1.0f;
+
+		if (appState.sharkAngerTimer > 0.0f) {
+			appState.sharkAngerTimer -= deltaTime;
+			currentSpeedMultiplier = 3.5f;
+			currentAnimMultiplier = 4.0f;
+		}
+
+		appState.sharkVirtualSplineTime += deltaTime * currentSpeedMultiplier;
+		appState.sharkVirtualAnimTime += deltaTime * currentAnimMultiplier;
 
 		UpdateCamera(appState, deltaTime);
 		BeginImGuiFrame();

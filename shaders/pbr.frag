@@ -18,18 +18,21 @@ uniform bool useAlbedoMap;
 uniform sampler2D albedoMapEye;
 uniform sampler2D albedoMapTeeth;
 
+uniform sampler2D flowMap;
+uniform bool useFlowMap;
+uniform float uTime;
+uniform float flowMapIntensity;
+
 uniform vec3 albedo;
 uniform float metallic;
 uniform float roughness;
 uniform float ao;
 
-// Параметры для специальных материалов
-uniform vec3 teethColor = vec3(0.95, 0.95, 0.95);  // Белые зубы
+uniform vec3 teethColor = vec3(0.95, 0.95, 0.95);
 uniform float teethMetallic = 0.05;
 uniform float teethRoughness = 0.3;
 
 uniform vec3 camPos;
-
 uniform sampler2D sunShadowMap;
 uniform sampler2D spotShadowMap;
 uniform sampler2D normalMapEye;
@@ -38,6 +41,8 @@ uniform int uMeshMaterialKind = 0;
 uniform bool uDebugMaterialKindView = false;
 uniform bool uDebugRawAlbedoView = false;
 uniform bool uDebugSpotOnlyView = false;
+uniform bool uDebugSpotShadowCompareView;
+uniform bool uDebugSpotCenterProbeView;
 
 // Spotlight uniforms (set from C++ RenderPbrScene)
 uniform vec3 spotPosition;
@@ -54,8 +59,6 @@ uniform float dirLightIntensity;
 
 uniform vec3 waterColor;
 uniform float fogDensity;
-uniform bool uDebugSpotShadowCompareView;
-uniform bool uDebugSpotCenterProbeView;
 
 const float PI = 3.14159265359;
 
@@ -126,28 +129,39 @@ void main() {
     float currentMetallic = metallic;
     float currentRoughness = roughness;
     vec3 sampledAlbedo = vec3(1.0);
+    vec3 sampledNormal = vec3(0.5, 0.5, 1.0);
+    vec2 uv0 = TexCoords;
+    vec2 uv1 = TexCoords;
+    float blendWeight = 0.0;
+    bool isFlowing = useFlowMap && flowMapIntensity > 0.0;
+
+    if (isFlowing) {
+        vec2 flowDir = texture(flowMap, TexCoords).rg * 2.0 - 1.0;
+        flowDir *= flowMapIntensity;
+
+        float cycleTime = uTime * 0.25; 
+        float phase0 = fract(cycleTime);
+        float phase1 = fract(cycleTime + 0.5);
+
+        uv0 = TexCoords - flowDir * phase0;
+        uv1 = TexCoords - flowDir * phase1;
+
+        blendWeight = abs(fract(cycleTime) - 0.5) * 2.0;
+    }
 
     if (useAlbedoMap) {
-        if (uMeshMaterialKind == 1) {
-            // Глаза
-            sampledAlbedo = texture(albedoMapEye, TexCoords).rgb;
-            currentAlbedo = sampledAlbedo;
-            currentAlbedo = pow(currentAlbedo, vec3(2.2));
-            currentAlbedo *= albedo;
-        } else if (uMeshMaterialKind == 2) {
-            // Зубы: используем белый цвет
-            sampledAlbedo = texture(albedoMapTeeth, TexCoords).rgb;
-            currentAlbedo = sampledAlbedo;
-            currentAlbedo = pow(currentAlbedo, vec3(2.2));
-            currentAlbedo *= teethColor;  // Переопределяем цвет на зубной
-            currentMetallic = teethMetallic;
-            currentRoughness = teethRoughness;
+        if (isFlowing) {
+            vec3 albedo0 = texture(albedoMap, uv0).rgb;
+            vec3 albedo1 = texture(albedoMap, uv1).rgb;
+            sampledAlbedo = mix(albedo0, albedo1, blendWeight);
         } else {
-            // Тело
-            sampledAlbedo = texture(albedoMap, TexCoords).rgb;
-            currentAlbedo = sampledAlbedo;
-            currentAlbedo = pow(currentAlbedo, vec3(2.2));
-            currentAlbedo *= albedo;
+            if (uMeshMaterialKind == 1) {
+                sampledAlbedo = texture(albedoMapEye, TexCoords).rgb;
+            } else if (uMeshMaterialKind == 2) {
+                sampledAlbedo = texture(albedoMapTeeth, TexCoords).rgb;
+            } else {
+                sampledAlbedo = texture(albedoMap, TexCoords).rgb;
+            }
         }
     }
 
@@ -169,18 +183,37 @@ void main() {
         return;
     }
 
+    if (useAlbedoMap) {
+        currentAlbedo = sampledAlbedo;
+        currentAlbedo = pow(currentAlbedo, vec3(2.2)); 
+        if (uMeshMaterialKind == 2) {
+            currentAlbedo *= teethColor;
+            currentMetallic = teethMetallic;
+            currentRoughness = teethRoughness;
+        } else {
+            currentAlbedo *= albedo;
+        }
+    }
+
     vec3 N;
     if (useNormalMap) {
-        if (uMeshMaterialKind == 1) {
-            N = texture(normalMapEye, TexCoords).rgb;
-        } else if (uMeshMaterialKind == 2) {
-            N = texture(normalMapTeeth, TexCoords).rgb;
+        if (isFlowing) {
+            vec3 norm0 = texture(normalMap, uv0).rgb;
+            vec3 norm1 = texture(normalMap, uv1).rgb;
+            sampledNormal = mix(norm0, norm1, blendWeight);
         } else {
-            N = texture(normalMap, TexCoords).rgb;
+            if (uMeshMaterialKind == 1) {
+                sampledNormal = texture(normalMapEye, TexCoords).rgb;
+            } else if (uMeshMaterialKind == 2) {
+                sampledNormal = texture(normalMapTeeth, TexCoords).rgb;
+            } else {
+                sampledNormal = texture(normalMap, TexCoords).rgb;
+            }
         }
+
+        N = sampledNormal;
         N = normalize(N * 2.0 - 1.0);
-        // DirectX/OpenGL flip for DDS normal maps (Y-up vs Y-down convention)
-        N.y = -N.y;
+        N.y = -N.y; 
 
         if (useDetailNormalMap) {
             vec3 detailN = texture(detailNormalMap, TexCoords * 4.0).rgb;
@@ -197,10 +230,8 @@ void main() {
     }
 
     vec3 V = normalize(camPos - WorldPos);
-
     vec3 F0 = vec3(0.04); 
     F0 = mix(F0, currentAlbedo, currentMetallic);
-
     vec3 Lo = vec3(0.0);
     vec3 spotOnlyLo = vec3(0.0);
 
@@ -212,8 +243,8 @@ void main() {
     vec3 H_dir = normalize(V + L_dir);
     vec3 radiance_dir = dirLightColor * dirLightIntensity;
 
-    float NDF_dir = DistributionGGX(N, H_dir, roughness);   
-    float G_dir   = GeometrySmith(N, V, L_dir, roughness);      
+    float NDF_dir = DistributionGGX(N, H_dir, currentRoughness);   
+    float G_dir   = GeometrySmith(N, V, L_dir, currentRoughness);      
     vec3 F_dir    = fresnelSchlick(max(dot(H_dir, V), 0.0), F0);       
     
     vec3 nom_dir    = NDF_dir * G_dir * F_dir; 
@@ -222,7 +253,7 @@ void main() {
     
     vec3 kS_dir = F_dir;
     vec3 kD_dir = vec3(1.0) - kS_dir;
-    kD_dir *= 1.0 - metallic;     
+    kD_dir *= 1.0 - currentMetallic;     
 
     float NdotL_dir = max(dot(N, L_dir), 0.0);
     

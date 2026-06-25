@@ -58,8 +58,8 @@ void BeginImGuiFrame() {
 }
 
 SceneRenderContext BuildSceneRenderContext(
-    const AppState &appState,
-    const SplinePath &sharkPath,
+    AppState& appState,
+    const SplinePath& sharkPath,
     const float currentFrameTime
 ) {
     SceneRenderContext context{};
@@ -69,19 +69,17 @@ SceneRenderContext BuildSceneRenderContext(
     context.view = appState.camera.GetViewMatrix();
     context.cameraPosition = appState.camera.GetPosition();
 
-    const float splineTime = std::fmod(currentFrameTime / 42.0f, 1.0f);
-    context.animationTimeSeconds = currentFrameTime;
+    const float splineTime = std::fmod(appState.sharkVirtualSplineTime / 42.0f, 1.0f);
+    context.animationTimeSeconds = appState.sharkVirtualAnimTime;
+    context.globalTimeSeconds = currentFrameTime;
     context.splineTime = splineTime;
     context.signedTurnCurvature = sharkPath.GetSignedCurvature(splineTime);
     context.sharkModelMatrix = sharkPath.GetTransform(splineTime);
 
-    // Корректирующий поворот на 180 градусов вокруг X оси для правильной ориентации
-    // (акула плывет "вверх ногами" без этого поворота)
     context.sharkModelMatrix = glm::rotate(context.sharkModelMatrix, glm::radians(180.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-
-    // Scale shark model (FBX from 3ds Max is ~20x too large)
     context.sharkModelMatrix = glm::scale(context.sharkModelMatrix, glm::vec3(0.05f));
 
+    appState.currentSharkModelMatrix = context.sharkModelMatrix;
 
     context.floorMatrix = glm::mat4(1.0f);
     context.floorMatrix = glm::translate(context.floorMatrix, glm::vec3(0.0f, -15.0f, 0.0f));
@@ -316,7 +314,8 @@ void RenderPbrScene(
     const float clampedOuterCutoff = std::clamp(appState.outerCutoff, clampedInnerCutoff, 89.0f);
     pbrShader.setFloat("innerCutoff", glm::cos(glm::radians(clampedInnerCutoff)));
     pbrShader.setFloat("outerCutoff", glm::cos(glm::radians(clampedOuterCutoff)));
-
+    pbrShader.setFloat("uTime", context.globalTimeSeconds);
+    pbrShader.setFloat("flowMapIntensity", appState.flowMapIntensity);
 
     pbrShader.setBool("useDetailNormalMap", appState.sharkUseDetailNormal);
     pbrShader.setFloat("detailNormalStrength", appState.sharkDetailNormalStrength);
@@ -329,13 +328,14 @@ void RenderPbrScene(
     pbrShader.setFloat("metallic", appState.metallic);
     pbrShader.setFloat("roughness", appState.roughness);
 
-    // Параметры для зубов
     pbrShader.setVec3("teethColor", appState.teethColor);
     pbrShader.setFloat("teethMetallic", appState.teethMetallic);
     pbrShader.setFloat("teethRoughness", appState.teethRoughness);
 
     pbrShader.setMat4("model", context.sharkModelMatrix);
     ApplySharkSkinning(pbrShader, shark, context);
+
+    pbrShader.setBool("useFlowMap", false);
     shark.Draw(pbrShader, &appState);
 
     pbrShader.setMat4("model", context.floorMatrix);
@@ -354,6 +354,12 @@ void RenderPbrScene(
     glActiveTexture(GL_TEXTURE2);
     glBindTexture(GL_TEXTURE_2D, textures.seabedNormal);
     pbrShader.setInt("normalMap", 2);
+
+    pbrShader.setBool("useFlowMap", true);
+    glActiveTexture(GL_TEXTURE10);
+    glBindTexture(GL_TEXTURE_2D, textures.seabedFlowMap);
+    pbrShader.setInt("flowMap", 10);
+
     seabed.Draw(pbrShader);
 }
 
@@ -504,6 +510,10 @@ void RenderControlPanel(
     }
 
     ImGui::Separator();
+    ImGui::Text("Environment (A14)");
+    ImGui::SliderFloat("Flow Map Intensity", &appState.flowMapIntensity, 0.0f, 2.0f);
+
+    ImGui::Separator();
     ImGui::Text("Eye/Teeth Position & Rotation Offsets");
     ImGui::SliderFloat("Eye X offset", &appState.eyeMeshPositionOffset.x, -5.0f, 5.0f);
     ImGui::SliderFloat("Eye Y offset", &appState.eyeMeshPositionOffset.y, -5.0f, 5.0f);
@@ -544,7 +554,6 @@ void RenderControlPanel(
                     rigAngles[static_cast<std::size_t>(i)]);
     }
 
-    // Show per-bone debug info from the model (weighted centers and total weights)
     ImGui::Separator();
     ImGui::Text("Bone debug (name | totalWeight | center xyz)");
     const auto boneDebug = shark.GetBoneDebugInfo();
@@ -593,7 +602,6 @@ void RenderControlPanel(
     ImGui::Separator();
     if (ImGui::Button("Fix eye orientation (+90 X)")) {
         const glm::mat4 rot = glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-        // Apply to both 'eye' and 'teeth' meshes just in case
         const_cast<Model &>(shark).ApplyLocalRotationToMeshes("eye", rot);
         const_cast<Model &>(shark).ApplyLocalRotationToMeshes("teeth", rot);
     }
