@@ -1,4 +1,4 @@
-#include <glad/glad.h>
+﻿#include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
@@ -16,11 +16,12 @@
 
 namespace {
 	GLFWwindow* CreateWindow() {
-		return glfwCreateWindow(1280, 720, "GRK: Shark + Spline + Skinning", nullptr, nullptr);
+		return glfwCreateWindow(1280, 720, "GRK: Underwater scene", nullptr, nullptr);
 	}
 
 	bool InitializeOpenGL(GLFWwindow* window, AppState& appState) {
 		glfwMakeContextCurrent(window);
+		glfwSwapInterval(1); 
 		glfwSetWindowUserPointer(window, &appState);
 		glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 		glfwSetCursorPosCallback(window, cursor_position_callback);
@@ -79,18 +80,15 @@ int main() {
 
 	auto textures = LoadTextures();
 
-	std::cout << "[DEBUG] Project root resolved from: " << ResolveProjectPath("") << std::endl;
-
-	const bool useClosedTrajectory = true;
-	auto sharkPath = SplinePath(GenerateControlPoints(), useClosedTrajectory);
-	auto trajectoryDebugBuffers = CreateTrajectoryDebugBuffers(sharkPath, useClosedTrajectory);
+	auto sharkPath = SplinePath(GenerateControlPoints(), true);
+	auto trajectoryDebugBuffers = CreateTrajectoryDebugBuffers(sharkPath, true);
 
 	auto submarinePath = SplinePath(GenerateSubmarinePath(), true);
 	auto subTrajectoryDebugBuffers = CreateTrajectoryDebugBuffers(submarinePath, true);
 
 	auto lastFrameTime = static_cast<float>(glfwGetTime());
-	auto sunShadow = CreateShadowMapResources(2048, 2048);
-	auto spotShadow = CreateShadowMapResources(4096, 4096);
+	auto sunShadow = CreateShadowMapResources(1024, 1024);
+	auto spotShadow = CreateShadowMapResources(1024, 1024);
 
 	while (!glfwWindowShouldClose(window)) {
 		const auto currentFrameTime = static_cast<float>(glfwGetTime());
@@ -108,17 +106,16 @@ int main() {
 
 		appState.sharkVirtualSplineTime += deltaTime * currentSpeedMultiplier;
 		appState.sharkVirtualAnimTime += deltaTime * currentAnimMultiplier;
+		float sharkSplineTime = std::fmod(appState.sharkVirtualSplineTime / 42.0f, 1.0f);
+		glm::vec3 sharkPos = glm::vec3(sharkPath.GetTransform(sharkSplineTime)[3]);
 
 		appState.excursionVirtualTime += deltaTime * 0.5f;
 		float subSplineTime = std::fmod(appState.excursionVirtualTime / 30.0f, 1.0f);
-
 		glm::mat4 rawSubTransform = submarinePath.GetTransform(subSplineTime);
 
-		glm::vec3 subPos = glm::vec3(rawSubTransform[3]); 
-		glm::vec3 splineForward = glm::normalize(glm::vec3(rawSubTransform[2])); 
-
+		glm::vec3 subPos = glm::vec3(rawSubTransform[3]);
+		glm::vec3 splineForward = glm::normalize(glm::vec3(rawSubTransform[2]));
 		glm::vec3 flatForward = glm::normalize(glm::vec3(splineForward.x, 0.0f, splineForward.z));
-
 		glm::vec3 realisticForward = glm::normalize(glm::mix(flatForward, splineForward, 0.15f));
 
 		glm::vec3 worldUp = glm::vec3(0.0f, 1.0f, 0.0f);
@@ -126,18 +123,23 @@ int main() {
 		glm::vec3 subUp = glm::cross(realisticForward, subRight);
 
 		glm::mat4 subTransform = glm::mat4(1.0f);
-		subTransform[0] = glm::vec4(subRight, 0.0f);        
-		subTransform[1] = glm::vec4(subUp, 0.0f);           
-		subTransform[2] = glm::vec4(realisticForward, 0.0f); 
-		subTransform[3] = glm::vec4(subPos, 1.0f);        
+		subTransform[0] = glm::vec4(subRight, 0.0f);
+		subTransform[1] = glm::vec4(subUp, 0.0f);
+		subTransform[2] = glm::vec4(realisticForward, 0.0f);
+		subTransform[3] = glm::vec4(subPos, 1.0f);
 
 		subTransform = glm::scale(subTransform, glm::vec3(5.0f));
-
 		appState.currentSubmarineMatrix = subTransform;
 
 		if (appState.isExcursionMode) {
-			glm::vec3 cameraOffset = glm::vec3(0.0f, 6.0f, 0.0f);
-			appState.camera.SetPosition(subPos + cameraOffset);
+			float followDistance = 20.0f;
+			float followHeight = 8.0f;
+
+			glm::vec3 camPos = subPos - realisticForward * followDistance + subUp * followHeight;
+			appState.camera.SetPosition(camPos);
+
+			glm::vec3 focusPoint = subPos + realisticForward * 10.0f;
+			appState.camera.LookAt(focusPoint);
 		}
 		else {
 			UpdateCamera(appState, deltaTime);
@@ -154,12 +156,10 @@ int main() {
 
 		RenderPbrScene(frameContext, appState, shaders.pbr, shark, seabed, submarine, textures, sunShadow, spotShadow);
 		RenderSkyboxPass(frameContext, shaders.skybox, skybox);
-		if (appState.showSharkSpline) {
-			RenderTrajectoryDebug(frameContext, shaders.lines, trajectoryDebugBuffers);
-		}
-		if (appState.showSubmarineSpline) {
-			RenderTrajectoryDebug(frameContext, shaders.lines, subTrajectoryDebugBuffers);
-		}
+
+		if (appState.showSharkSpline) RenderTrajectoryDebug(frameContext, shaders.lines, trajectoryDebugBuffers);
+		if (appState.showSubmarineSpline) RenderTrajectoryDebug(frameContext, shaders.lines, subTrajectoryDebugBuffers);
+
 		RenderControlPanel(appState, shark, frameContext.signedTurnCurvature, sunShadow, spotShadow);
 
 		ImGui::Render();

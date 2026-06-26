@@ -2,6 +2,7 @@
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/quaternion.hpp>
+#include <cmath>
 
 Camera::Camera(const glm::vec3& startPosition)
     : position(startPosition), orientation(glm::identity<glm::quat>()), movementSpeed(10.0f), mouseSensitivity(0.0025f) {}
@@ -25,7 +26,6 @@ void Camera::ProcessMouse(float deltaX, float deltaY) {
     newForward = glm::normalize(newForward);
 
     glm::mat4 view = glm::lookAt(glm::vec3(0.0f), newForward, glm::vec3(0.0f, 1.0f, 0.0f));
-
     orientation = glm::quat_cast(view);
 }
 
@@ -44,6 +44,23 @@ void Camera::ProcessKeyboard(bool moveForward, bool moveBackward, bool moveLeft,
     if (moveRight) {
         position += GetRight() * velocity;
     }
+}
+
+void Camera::SetPosition(const glm::vec3& newPosition) {
+    position = newPosition;
+}
+
+void Camera::LookAt(const glm::vec3& target) {
+    glm::vec3 dir = target - position;
+    if (glm::length(dir) < 0.001f) return;
+
+    glm::vec3 upRef = glm::vec3(0.0f, 1.0f, 0.0f);
+    if (std::abs(glm::dot(glm::normalize(dir), upRef)) > 0.999f) {
+        upRef = glm::vec3(0.0f, 0.0f, -1.0f);
+    }
+
+    glm::mat4 view = glm::lookAt(glm::vec3(0.0f), dir, upRef);
+    orientation = glm::quat_cast(view);
 }
 
 glm::mat4 Camera::GetViewMatrix() const {
@@ -68,8 +85,3 @@ glm::vec3 Camera::GetRight() const {
 const glm::vec3& Camera::GetPosition() const {
     return position;
 }
-
-void Camera::SetPosition(const glm::vec3& newPosition) {
-    position = newPosition;
-}
-

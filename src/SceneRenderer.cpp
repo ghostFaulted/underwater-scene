@@ -70,8 +70,7 @@ SceneRenderContext BuildSceneRenderContext(
     context.cameraPosition = appState.camera.GetPosition();
 
     const float splineTime = std::fmod(appState.sharkVirtualSplineTime / 42.0f, 1.0f);
-    context.animationTimeSeconds = appState.sharkVirtualAnimTime;
-    context.globalTimeSeconds = currentFrameTime;
+    context.animationTimeSeconds = currentFrameTime;
     context.splineTime = splineTime;
     context.signedTurnCurvature = sharkPath.GetSignedCurvature(splineTime);
     context.sharkModelMatrix = sharkPath.GetTransform(splineTime);
@@ -146,11 +145,6 @@ void RenderSunShadowPass(
     ApplySharkSkinning(shadowShader, shark, context);
     shark.Draw(shadowShader, nullptr);
 
-    shadowShader.setMat4("model", context.floorMatrix);
-    DisableSkinning(shadowShader);
-    seabed.Draw(shadowShader);
-
-    // Отрисовка тени лодки
     shadowShader.setMat4("model", context.submarineMatrix);
     DisableSkinning(shadowShader);
     submarine.Draw(shadowShader, nullptr);
@@ -177,10 +171,6 @@ void RenderSpotShadowPass(
     shadowShader.setMat4("model", context.sharkModelMatrix);
     ApplySharkSkinning(shadowShader, shark, context);
     shark.Draw(shadowShader, nullptr);
-
-    shadowShader.setMat4("model", context.floorMatrix);
-    DisableSkinning(shadowShader);
-    seabed.Draw(shadowShader);
 
     shadowShader.setMat4("model", context.submarineMatrix);
     DisableSkinning(shadowShader);
@@ -386,205 +376,35 @@ void RenderControlPanel(
     const ShadowMapResources& sunShadow,
     const ShadowMapResources& spotShadow
 ) {
-    ImGui::Begin("GRK: Interactive U-Boat Diorama");
+    ImGui::Begin("Interaktywna scena podwodna");
     ImGui::Separator();
-    ImGui::Text("System Controls");
-    ImGui::Text("Press 'C' to toggle Cursor lock.");
-    ImGui::Text("Press 'E' to toggle Excursion Mode.");
-    ImGui::Text("Press 'F' to toggle Spotlight.");
-    ImGui::Text("Current Mode: %s", appState.isExcursionMode ? "EXCURSION (Auto)" : "FREE (WASD)");
-    ImGui::Text("Cursor state: %s", appState.cursorDisabled ? "LOCKED (Camera)" : "FREE (UI Active)");
-    ImGui::Separator();
-    ImGui::Text("Shark PBR Materials");
-    ImGui::ColorEdit3("Body Tint", &appState.albedoColor[0]);
-    ImGui::SliderFloat("Metallic (Metalness)", &appState.metallic, 0.0f, 1.0f);
-    ImGui::SliderFloat("Roughness", &appState.roughness, 0.0f, 1.0f);
-    ImGui::SliderFloat("Ambient Occlusion", &appState.ambientOcclusion, 0.0f, 1.0f);
-    ImGui::Checkbox("Use Detail Normal", &appState.sharkUseDetailNormal);
-    ImGui::SliderFloat("Detail Normal Strength", &appState.sharkDetailNormalStrength, 0.0f, 0.5f);
+    ImGui::Text("=== Sterowanie (Controls) ===");
+    ImGui::Text("C    - Kursor (Zablokowany / Swobodny)");
+    ImGui::Text("E    - Kamera (Z 3-go osoby / Swobodna)");
+    ImGui::Text("F    - Reflektor lodzi (Wl / Wyl)");
+    ImGui::Text("LPM  - Kliknij na rekina zeby go przestraszyc (Gdy kursor jest swobodny)");
+    ImGui::Spacing();
+    ImGui::Text("Tryb kamery: %s", appState.isExcursionMode ? "3RD PERSON (Submarine)" : "FREE (WASD)");
+    ImGui::Text("Kursor: %s", appState.cursorDisabled ? "LOCKED" : "FREE (UI Active)");
 
     ImGui::Separator();
-    ImGui::Text("Teeth Materials");
-    ImGui::ColorEdit3("Teeth Color", &appState.teethColor[0]);
-    ImGui::SliderFloat("Teeth Metallic", &appState.teethMetallic, 0.0f, 1.0f);
-    ImGui::SliderFloat("Teeth Roughness", &appState.teethRoughness, 0.0f, 1.0f);
+    ImGui::Text("=== Srodowisko (Environment) ===");
+    ImGui::SliderFloat("Prady wodne (Flow Map)", &appState.flowMapIntensity, 0.0f, 1.5f);
+    ImGui::SliderFloat("Gestosc mgly (Fog)", &appState.fogDensity, 0.0f, 0.05f, "%.4f");
+    ImGui::ColorEdit3("Kolor wody", &appState.waterColor[0]);
 
     ImGui::Separator();
-    ImGui::Text("Submarine Materials");
-    ImGui::ColorEdit3("Sub Tint", &appState.subAlbedoColor[0]);
-    ImGui::SliderFloat("Sub Metallic", &appState.subMetallic, 0.0f, 1.0f);
-    ImGui::SliderFloat("Sub Roughness", &appState.subRoughness, 0.0f, 1.0f);
+    ImGui::Text("=== Oswietlenie (Lighting) ===");
+    ImGui::SliderFloat3("Kierunek slonca", &appState.dirLightDirection[0], -1.0f, 1.0f);
+    ImGui::SliderFloat("Sila slonca", &appState.dirLightIntensity, 0.0f, 30.0f);
+    ImGui::Checkbox("Reflektor lodzi (Spotlight)", &appState.spotlightEnabled);
 
     ImGui::Separator();
+    ImGui::Text("=== Diagnostyka ===");
+    ImGui::Checkbox("Pokaz trajektorie (Splines)", &appState.showSubmarineSpline);
+    appState.showSharkSpline = appState.showSubmarineSpline;
 
-    ImGui::Text("Environment (Fog & Skybox)");
-    ImGui::ColorEdit3("Water Color", &appState.waterColor[0]);
-    ImGui::SliderFloat("Fog Density", &appState.fogDensity, 0.0f, 0.1f, "%.4f");
-    ImGui::Separator();
-
-    ImGui::Text("Directional Light (Sun)");
-    ImGui::SliderFloat3("Direction", &appState.dirLightDirection[0], -1.0f, 1.0f);
-    ImGui::ColorEdit3("Light Color", &appState.dirLightColor[0]);
-    ImGui::SliderFloat("Intensity", &appState.dirLightIntensity, 0.0f, 50.0f);
-    ImGui::Separator();
-
-    ImGui::Text("Shark controls");
-    ImGui::Checkbox("Spotlight (F)", &appState.spotlightEnabled);
-    ImGui::ColorEdit3("Spot Color", &appState.spotColor[0]);
-    ImGui::SliderFloat("Spot Intensity", &appState.spotIntensity, 0.0f, 50000.0f);
-    ImGui::SliderFloat("Inner Cutoff (deg)", &appState.innerCutoff, 1.0f, 89.0f);
-    ImGui::SliderFloat("Outer Cutoff (deg)", &appState.outerCutoff, 1.0f, 89.0f);
-    if (appState.outerCutoff < appState.innerCutoff) {
-        appState.outerCutoff = appState.innerCutoff;
-    }
-    ImGui::Checkbox("Debug Material Kind Colors", &appState.debugMaterialKindView);
-    ImGui::Checkbox("Debug Raw Albedo", &appState.debugRawAlbedoView);
-    ImGui::Checkbox("Debug Spotlight Only", &appState.debugSpotOnlyView);
-    ImGui::Checkbox("Debug Spot Shadow Map", &appState.debugSpotShadowMapView);
-    ImGui::Checkbox("Debug Spot Shadow Compare", &appState.debugSpotShadowCompareView);
-    ImGui::Checkbox("Debug Spot Center Probe", &appState.debugSpotCenterProbeView);
-
-    if (appState.debugSpotShadowMapView) {
-        ImGui::Text("Spot shadow depth texture:");
-        ImGui::Image(
-            reinterpret_cast<ImTextureID>(static_cast<intptr_t>(spotShadow.depthMap)),
-            ImVec2(256.0f, 256.0f),
-            ImVec2(0.0f, 1.0f),
-            ImVec2(1.0f, 0.0f)
-        );
-        ImGui::Text("If this looks almost white, the depth map is empty.");
-    }
-
-    if (appState.debugSpotShadowCompareView) {
-        ImGui::Separator();
-        ImGui::Text("Spot shadow compare:");
-        ImGui::Text("R = sun visibility, G = spot visibility, B = spot cone factor");
-        ImGui::Image(
-            reinterpret_cast<ImTextureID>(static_cast<intptr_t>(sunShadow.depthMap)),
-            ImVec2(180.0f, 180.0f),
-            ImVec2(0.0f, 1.0f),
-            ImVec2(1.0f, 0.0f)
-        );
-        ImGui::SameLine();
-        ImGui::Image(
-            reinterpret_cast<ImTextureID>(static_cast<intptr_t>(spotShadow.depthMap)),
-            ImVec2(180.0f, 180.0f),
-            ImVec2(0.0f, 1.0f),
-            ImVec2(1.0f, 0.0f)
-        );
-
-        const float compareSunVisibility = 1.0f;
-        const float compareSpotVisibility = appState.spotlightEnabled ? 1.0f : 0.0f;
-        const float compareCone = appState.spotlightEnabled ? 1.0f : 0.0f;
-        ImGui::Text("Sun visibility: %.3f", compareSunVisibility);
-        ImGui::Text("Spot visibility: %.3f", compareSpotVisibility);
-        ImGui::Text("Spot cone factor: %.3f", compareCone);
-    }
-
-    if (appState.debugSpotCenterProbeView) {
-        ImGui::Separator();
-        ImGui::Text("Spot center probe:");
-        ImGui::Text("R = spot shadow amount, G = visibility, B = cone factor");
-        ImGui::Text("This is the center-fragment diagnostic for the spotlight shadow term.");
-    }
-
-    ImGui::Separator();
-    ImGui::Text("Environment (A14)");
-    ImGui::SliderFloat("Flow Map Intensity", &appState.flowMapIntensity, 0.0f, 2.0f);
-
-    ImGui::Separator();
-    ImGui::Text("Eye/Teeth Position & Rotation Offsets");
-    ImGui::SliderFloat("Eye X offset", &appState.eyeMeshPositionOffset.x, -5.0f, 5.0f);
-    ImGui::SliderFloat("Eye Y offset", &appState.eyeMeshPositionOffset.y, -5.0f, 5.0f);
-    ImGui::SliderFloat("Eye Z offset", &appState.eyeMeshPositionOffset.z, -5.0f, 5.0f);
-    ImGui::SliderFloat("Eye Rot X (deg)", &appState.eyeMeshRotationOffset.x, -180.0f, 180.0f);
-    ImGui::SliderFloat("Eye Rot Y (deg)", &appState.eyeMeshRotationOffset.y, -180.0f, 180.0f);
-    ImGui::SliderFloat("Eye Rot Z (deg)", &appState.eyeMeshRotationOffset.z, -180.0f, 180.0f);
-
-    ImGui::Separator();
-    ImGui::SliderFloat("Teeth X offset", &appState.teethMeshPositionOffset.x, -200.0f, 200.0f);
-    ImGui::SliderFloat("Teeth Y offset", &appState.teethMeshPositionOffset.y, -200.0f, 200.0f);
-    ImGui::SliderFloat("Teeth Z offset", &appState.teethMeshPositionOffset.z, -200.0f, 200.0f);
-    ImGui::SliderFloat("Teeth Rot X (deg)", &appState.teethMeshRotationOffset.x, -180.0f, 180.0f);
-    ImGui::SliderFloat("Teeth Rot Y (deg)", &appState.teethMeshRotationOffset.y, -180.0f, 180.0f);
-    ImGui::SliderFloat("Teeth Rot Z (deg)", &appState.teethMeshRotationOffset.z, -180.0f, 180.0f);
-    ImGui::Separator();
-
-    ImGui::Text("Diagnostics");
-    ImGui::Checkbox("Show Shark Spline", &appState.showSharkSpline);       
-    ImGui::Checkbox("Show Submarine Spline", &appState.showSubmarineSpline);
     ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
-    ImGui::Text("Use Mouse to look around, WASD to move.");
 
-    const auto& animator = GetSwimAnimator();
-    const auto& rigLines = animator.GetDebugLines();
-    const auto& rigBones = animator.GetAnimatedBones();
-    const auto& rigAngles = animator.GetLastAppliedAnglesDegrees();
-
-    ImGui::Separator();
-    ImGui::Text("Shark Rig Overlay");
-    ImGui::Text("Signed Turn Curvature: %.4f", signedCurvature);
-    const int staticLineCount = std::min<int>(static_cast<int>(rigLines.size()), 12);
-    for (int i = 0; i < staticLineCount; ++i) {
-        ImGui::TextUnformatted(rigLines[static_cast<std::size_t>(i)].c_str());
-    }
-
-    const int liveLineCount = static_cast<int>(std::min(rigBones.size(), rigAngles.size()));
-    for (int i = 0; i < liveLineCount; ++i) {
-        ImGui::Text("%s : %.2f deg", rigBones[static_cast<std::size_t>(i)].c_str(),
-            rigAngles[static_cast<std::size_t>(i)]);
-    }
-
-    ImGui::Separator();
-    ImGui::Text("Bone debug (name | totalWeight | center xyz)");
-    const auto boneDebug = shark.GetBoneDebugInfo();
-    const int boneShow = std::min<int>(static_cast<int>(boneDebug.size()), 24);
-    for (int i = 0; i < boneShow; ++i) {
-        const auto& b = boneDebug[static_cast<std::size_t>(i)];
-        ImGui::Text(
-            "%s | w=%.3f | c=(%.3f %.3f %.3f)",
-            b.name.c_str(),
-            b.totalWeight,
-            b.weightedCenter.x,
-            b.weightedCenter.y,
-            b.weightedCenter.z
-        );
-    }
-
-    ImGui::Separator();
-    ImGui::Text("Mesh debug (name | kind | attach | pivot xyz | centroid xyz | extent xyz)");
-    const auto meshDebug = shark.GetMeshDebugInfo();
-    const int meshShow = std::min<int>(static_cast<int>(meshDebug.size()), 48);
-    for (int i = 0; i < meshShow; ++i) {
-        const auto& m = meshDebug[static_cast<std::size_t>(i)];
-        const char* kindStr = m.kind == MeshMaterialKind::Body
-            ? "Body"
-            : (m.kind == MeshMaterialKind::Eye
-                ? "Eye"
-                : (m.kind == MeshMaterialKind::Teeth ? "Teeth" : "Unknown"));
-        const char* attachName = m.attachedBoneName.empty() ? "-" : m.attachedBoneName.c_str();
-        ImGui::Text(
-            "%s | %s | a %s | p %.3f %.3f %.3f | c %.3f %.3f %.3f | e %.3f %.3f %.3f",
-            m.name.c_str(),
-            kindStr,
-            attachName,
-            m.pivotTranslation.x,
-            m.pivotTranslation.y,
-            m.pivotTranslation.z,
-            m.centroid.x,
-            m.centroid.y,
-            m.centroid.z,
-            m.boundsExtent.x,
-            m.boundsExtent.y,
-            m.boundsExtent.z
-        );
-    }
-
-    ImGui::Separator();
-    if (ImGui::Button("Fix eye orientation (+90 X)")) {
-        const glm::mat4 rot = glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-        const_cast<Model&>(shark).ApplyLocalRotationToMeshes("eye", rot);
-        const_cast<Model&>(shark).ApplyLocalRotationToMeshes("teeth", rot);
-    }
     ImGui::End();
 }

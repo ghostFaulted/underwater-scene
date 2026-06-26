@@ -28,8 +28,7 @@ struct ShaderSet {
         : pbr(pbrVertPath.c_str(), pbrFragPath.c_str())
         , skybox(skyVertPath.c_str(), skyFragPath.c_str())
         , lines(lineVertPath.c_str(), lineFragPath.c_str())
-        , shadow(shadowVertPath.c_str(), shadowFragPath.c_str()) {
-    }
+        , shadow(shadowVertPath.c_str(), shadowFragPath.c_str()) {}
 };
 
 struct TextureSet {
@@ -42,7 +41,7 @@ struct TextureSet {
     unsigned int sharkTeethNormal = 0;
     unsigned int seabedAlbedo = 0;
     unsigned int seabedNormal = 0;
-    unsigned int seabedFlowMap = 0; 
+    unsigned int seabedFlowMap = 0;
     unsigned int submarineAlbedo = 0;
 };
 
@@ -79,3 +78,4 @@ void DestroyTrajectoryDebugBuffers(TrajectoryDebugBuffers& buffers);
 ShadowMapResources CreateShadowMapResources(unsigned int width, unsigned int height);
 void DestroyShadowMapResources(ShadowMapResources& resources);
 std::vector<glm::vec3> GenerateSubmarinePath();
+std::vector<glm::vec3> GenerateCameraPath();

@@ -16,6 +16,7 @@ public:
     void ProcessMouse(float deltaX, float deltaY);
     void ProcessKeyboard(bool moveForward, bool moveBackward, bool moveLeft, bool moveRight, float deltaTime);
     void SetPosition(const glm::vec3& newPosition);
+    void LookAt(const glm::vec3& target);
 
     [[nodiscard]] glm::mat4 GetViewMatrix() const;
 
@@ -24,6 +25,5 @@ public:
     [[nodiscard]] glm::vec3 GetRight() const;
     [[nodiscard]] const glm::vec3& GetPosition() const;
 };
-
 
 #endif //UNDERWATERSCENE_CAMERA_H

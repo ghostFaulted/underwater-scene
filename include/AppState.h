@@ -27,7 +27,7 @@ struct AppState {
     float teethRoughness = 0.3f;
     float teethMetallic = 0.05f;
 
-    float flowMapIntensity = 0.5f;
+    float flowMapIntensity = 0.25f; 
     bool spotlightEnabled = true;
     glm::vec3 spotColor = glm::vec3(1.0f);
     float spotIntensity = 1000.0f;
@@ -46,13 +46,13 @@ struct AppState {
     glm::vec3 eyeMeshRotationOffset{ 0.0f };
     glm::vec3 teethMeshPositionOffset{ 0.0f };
     glm::vec3 teethMeshRotationOffset{ 0.0f };
-
-    glm::vec3 waterColor = glm::vec3(0.05f, 0.15f, 0.25f);
-    float fogDensity = 0.02f;
-
-    glm::vec3 dirLightDirection = glm::vec3(-0.5f, -1.0f, -0.5f);
+    
+    glm::vec3 waterColor = glm::vec3(0.196f, 0.373f, 0.529f);
+    float fogDensity = 0.0150f; 
+    glm::vec3 dirLightDirection = glm::vec3(-0.8f, -0.8f, -0.4f);
     glm::vec3 dirLightColor = glm::vec3(1.0f, 0.95f, 0.8f);
-    float dirLightIntensity = 10.0f;
+    float dirLightIntensity = 25.0f; 
+    
 
     float sharkAngerTimer = 0.0f;
     float sharkVirtualSplineTime = 0.0f;
@@ -62,16 +62,17 @@ struct AppState {
     glm::mat4 currentSharkModelMatrix{ 1.0f };
 
     AABB sharkLocalAABB = {
-        glm::vec3(-150.0f, -80.0f, -300.0f), 
-        glm::vec3(150.0f, 150.0f, 300.0f)    
+        glm::vec3(-150.0f, -80.0f, -300.0f),
+        glm::vec3(150.0f, 150.0f, 300.0f)
     };
 
     bool isExcursionMode = true;
     float excursionVirtualTime = 0.0f;
     glm::mat4 currentSubmarineMatrix{ 1.0f };
 
-    float subMetallic = 0.8f;     
-    float subRoughness = 0.25f;    
+    float subMetallic = 0.8f;
+    float subRoughness = 0.25f;
     glm::vec3 subAlbedoColor = glm::vec3(1.0f, 1.0f, 1.0f);
+
     bool showSubmarineSpline = false;
 };
