@@ -35,3 +35,7 @@ Projekt wykorzystuje CMake z automatycznym pobieraniem zależności (FetchConten
   * **Materiały (PBR):** Suwaki do regulacji właściwości fizycznych (Metallic, Roughness, Tint) niezależnie dla rekina oraz łodzi podwodnej. Możliwość włączenia mikro-detali skóry rekina (Detail Normal Map).
   * **Diagnostyka i Splajny:** Przełączniki pozwalające na wizualizację trójwymiarowych trajektorii obiektów (Splajnów) oraz podgląd buforów cieni (Shadow Maps) generowanych przez reflektor i słońce.
 * **Interakcja 3 (Picking / Raycasting):** W trybie swobodnego kursora (klawisz `C`), kliknięcie Lewym Przyciskiem Myszy (LPM) na model rekina aktywuje stan ucieczki (rekin znacznie przyspiesza i intensywniej macha ogonem na 4 sekundy).
+
+## Screenshots
+![Screenshot 2026-06-26 164654.png](Screenshot%202026-06-26%20164654.png)
+![Screenshot 2026-06-26 164737.png](Screenshot%202026-06-26%20164737.png)
