@@ -1,15 +1,13 @@
 #version 330 core
-// Prosty shader wierzcholkow do rysowania linii pomocniczych dla splajnow (Trajektorie).
-// Przyjmuje wylacznie jeden atrybut: pozycje x,y,z wierzcholka na lokalizatorze = 0.
-layout(location = 0) in vec3 position;
+// Prosty shader fragmentow nakladajacy plaski (solidny) kolor bez zadnego oswietlenia.
+out vec4 FragColor;
 
-// Macierze kamery sluzace do umiejscowienia tych wierzcholkow na ekranie monitora
-uniform mat4 projection;
-uniform mat4 view;
+// Zmienna wpuszczana ze srodowiska C++ pozwalajaca pokolorowac rozne linie na rozne kolory 
+// (np. cyan dla sciezki, zielony dla Normalnych)
+uniform vec3 lineColor;
 
 void main()
 {
-    // Rysowanie odbywa sie wprost w obrebie World Space, dlatego pomijamy tu macierz 'model'.
-    // Od razu mnozymy przez przestrzen kamery (view) i obiektyw perspektywiczny (projection).
-    gl_Position = projection * view * vec4(position, 1.0);
+    // Konwersja koloru RGB na format RGBA z wymuszonym kanalem Alpha na poziomie 100% (nieprzezroczysty)
+    FragColor = vec4(lineColor, 1.0);
 }
