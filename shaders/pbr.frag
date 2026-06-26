@@ -138,7 +138,6 @@ void main() {
     if (isFlowing) {
         vec2 flowDir = texture(flowMap, TexCoords).rg * 2.0 - 1.0;
         
-        // ДОБАВЛЯЕМ ПОСТОЯННОЕ ТЕЧЕНИЕ К ВЕКТОРУ КАРТЫ ПОТОКА
         flowDir += vec2(0.6, 0.4); 
         flowDir *= flowMapIntensity;
 
@@ -245,7 +244,6 @@ void main() {
 
     vec3 H_dir = normalize(V + L_dir);
     
-    // ДОБАВЛЯЕМ ЛЕГКИЙ ШУМ ВРЕМЕНИ ДЛЯ ПЕРЕЛИВА КАУСТИК НА ОДНОТОННЫХ ТЕКСТУРАХ
     float caustics = 1.0;
     if (isFlowing) { 
         vec2 causticUV1 = TexCoords * 4.0 + vec2(uTime * 0.03, uTime * 0.04);
@@ -253,7 +251,6 @@ void main() {
         float noise1 = texture(flowMap, causticUV1).r;
         float noise2 = texture(flowMap, causticUV2).g;
         
-        // Модуляция временем
         noise1 += sin(causticUV1.x * 5.0 + uTime) * 0.15;
         noise2 += cos(causticUV2.y * 5.0 + uTime * 1.2) * 0.15;
         

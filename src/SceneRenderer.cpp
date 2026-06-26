@@ -385,7 +385,7 @@ void RenderControlPanel(
     ImGui::Text("F    - Reflektor lodzi (Wl / Wyl)");
     ImGui::Text("LPM  - Kliknij na rekina zeby go przestraszyc (Gdy kursor jest swobodny)");
     ImGui::Spacing();
-    ImGui::Text("Tryb kamery: %s", appState.isExcursionMode ? "3RD PERSON (Submarine)" : "FREE (WASD)");
+    ImGui::Text("Tryb kamery: %s", appState.isExcursionMode ? "EXCURSION (Submarine)" : "FREE (WASD)");
     ImGui::Text("Kursor: %s", appState.cursorDisabled ? "LOCKED" : "FREE (UI Active)");
 
     ImGui::Separator();
@@ -393,18 +393,82 @@ void RenderControlPanel(
     ImGui::SliderFloat("Prady wodne (Flow Map)", &appState.flowMapIntensity, 0.0f, 1.5f);
     ImGui::SliderFloat("Gestosc mgly (Fog)", &appState.fogDensity, 0.0f, 0.05f, "%.4f");
     ImGui::ColorEdit3("Kolor wody", &appState.waterColor[0]);
-
-    ImGui::Separator();
-    ImGui::Text("=== Oswietlenie (Lighting) ===");
+    ImGui::Spacing();
     ImGui::SliderFloat3("Kierunek slonca", &appState.dirLightDirection[0], -1.0f, 1.0f);
     ImGui::SliderFloat("Sila slonca", &appState.dirLightIntensity, 0.0f, 30.0f);
-    ImGui::Checkbox("Reflektor lodzi (Spotlight)", &appState.spotlightEnabled);
 
     ImGui::Separator();
-    ImGui::Text("=== Diagnostyka ===");
-    ImGui::Checkbox("Pokaz trajektorie (Splines)", &appState.showSubmarineSpline);
-    appState.showSharkSpline = appState.showSubmarineSpline;
+    ImGui::Text("=== Rekin (Shark) ===");
+    ImGui::Checkbox("Pokaz trajektorie rekina (Shark Spline)", &appState.showSharkSpline);
+    ImGui::ColorEdit3("Body Tint", &appState.albedoColor[0]);
+    ImGui::SliderFloat("Metallic (Metalness)", &appState.metallic, 0.0f, 1.0f);
+    ImGui::SliderFloat("Roughness", &appState.roughness, 0.0f, 1.0f);
+    ImGui::SliderFloat("Ambient Occlusion", &appState.ambientOcclusion, 0.0f, 1.0f);
+    ImGui::Checkbox("Use Detail Normal", &appState.sharkUseDetailNormal);
+    ImGui::SliderFloat("Detail Normal Strength", &appState.sharkDetailNormalStrength, 0.0f, 0.5f);
 
+    ImGui::Separator();
+    ImGui::Text("=== Lodz podwodna (Submarine) ===");
+    ImGui::Checkbox("Pokaz trajektorie lodzi (Sub Spline)", &appState.showSubmarineSpline);
+    ImGui::ColorEdit3("Sub Tint", &appState.subAlbedoColor[0]);
+    ImGui::SliderFloat("Sub Metallic", &appState.subMetallic, 0.0f, 1.0f);
+    ImGui::SliderFloat("Sub Roughness", &appState.subRoughness, 0.0f, 1.0f);
+
+    ImGui::Spacing();
+    ImGui::Text("Reflektor (Spotlight):");
+    ImGui::Checkbox("Wlacz reflektor (F)", &appState.spotlightEnabled);
+    ImGui::ColorEdit3("Spot Color", &appState.spotColor[0]);
+    ImGui::SliderFloat("Spot Intensity", &appState.spotIntensity, 0.0f, 50000.0f);
+    ImGui::SliderFloat("Inner Cutoff (deg)", &appState.innerCutoff, 1.0f, 89.0f);
+    ImGui::SliderFloat("Outer Cutoff (deg)", &appState.outerCutoff, 1.0f, 89.0f);
+
+    ImGui::Separator();
+    ImGui::Text("=== Diagnostyka (Diagnostics) ===");
+    ImGui::Checkbox("Debug Material Kind Colors", &appState.debugMaterialKindView);
+    ImGui::Checkbox("Debug Raw Albedo", &appState.debugRawAlbedoView);
+    ImGui::Checkbox("Debug Spotlight Only", &appState.debugSpotOnlyView);
+    ImGui::Checkbox("Debug Spot Shadow Map", &appState.debugSpotShadowMapView);
+    ImGui::Checkbox("Debug Spot Shadow Compare", &appState.debugSpotShadowCompareView);
+    ImGui::Checkbox("Debug Spot Center Probe", &appState.debugSpotCenterProbeView);
+
+    if (appState.debugSpotShadowMapView) {
+        ImGui::Text("Spot shadow depth texture:");
+        ImGui::Image(
+            reinterpret_cast<ImTextureID>(static_cast<intptr_t>(spotShadow.depthMap)),
+            ImVec2(256.0f, 256.0f),
+            ImVec2(0.0f, 1.0f),
+            ImVec2(1.0f, 0.0f)
+        );
+        ImGui::Text("If this looks almost white, the depth map is empty.");
+    }
+
+    if (appState.debugSpotShadowCompareView) {
+        ImGui::Separator();
+        ImGui::Text("Spot shadow compare:");
+        ImGui::Text("R = sun visibility, G = spot visibility, B = spot cone factor");
+        ImGui::Image(
+            reinterpret_cast<ImTextureID>(static_cast<intptr_t>(sunShadow.depthMap)),
+            ImVec2(180.0f, 180.0f),
+            ImVec2(0.0f, 1.0f),
+            ImVec2(1.0f, 0.0f)
+        );
+        ImGui::SameLine();
+        ImGui::Image(
+            reinterpret_cast<ImTextureID>(static_cast<intptr_t>(spotShadow.depthMap)),
+            ImVec2(180.0f, 180.0f),
+            ImVec2(0.0f, 1.0f),
+            ImVec2(1.0f, 0.0f)
+        );
+    }
+
+    if (appState.debugSpotCenterProbeView) {
+        ImGui::Separator();
+        ImGui::Text("Spot center probe:");
+        ImGui::Text("R = spot shadow amount, G = visibility, B = cone factor");
+        ImGui::Text("This is the center-fragment diagnostic for the spotlight shadow term.");
+    }
+
+    ImGui::Separator();
     ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
 
     ImGui::End();

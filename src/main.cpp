@@ -132,14 +132,8 @@ int main() {
 		appState.currentSubmarineMatrix = subTransform;
 
 		if (appState.isExcursionMode) {
-			float followDistance = 20.0f;
-			float followHeight = 8.0f;
-
-			glm::vec3 camPos = subPos - realisticForward * followDistance + subUp * followHeight;
-			appState.camera.SetPosition(camPos);
-
-			glm::vec3 focusPoint = subPos + realisticForward * 10.0f;
-			appState.camera.LookAt(focusPoint);
+			glm::vec3 cameraOffset = glm::vec3(0.0f, 6.0f, 0.0f);
+			appState.camera.SetPosition(subPos + cameraOffset);
 		}
 		else {
 			UpdateCamera(appState, deltaTime);
