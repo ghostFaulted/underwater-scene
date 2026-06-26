@@ -71,6 +71,7 @@ SceneRenderContext BuildSceneRenderContext(
 
     const float splineTime = std::fmod(appState.sharkVirtualSplineTime / 42.0f, 1.0f);
     context.animationTimeSeconds = currentFrameTime;
+    context.globalTimeSeconds = currentFrameTime; 
     context.splineTime = splineTime;
     context.signedTurnCurvature = sharkPath.GetSignedCurvature(splineTime);
     context.sharkModelMatrix = sharkPath.GetTransform(splineTime);

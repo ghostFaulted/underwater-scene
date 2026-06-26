@@ -32,10 +32,7 @@ uniform vec3 teethColor = vec3(0.95, 0.95, 0.95);
 uniform float teethMetallic = 0.05;
 uniform float teethRoughness = 0.3;
 
-uniform vec3 lightPositions[4];
-uniform vec3 lightColors[4];
 uniform vec3 camPos;
-
 uniform sampler2D sunShadowMap;
 uniform sampler2D spotShadowMap;
 uniform sampler2D normalMapEye;
@@ -47,7 +44,7 @@ uniform bool uDebugSpotOnlyView = false;
 uniform bool uDebugSpotShadowCompareView;
 uniform bool uDebugSpotCenterProbeView;
 
-// Spotlight uniforms
+// Spotlight uniforms (set from C++ RenderPbrScene)
 uniform vec3 spotPosition;
 uniform vec3 spotDirection;
 uniform vec3 spotColor;
@@ -103,7 +100,7 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0) {
     return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
 
-float ShadowCalculation(sampler2D map, vec4 fragPosLightSpace, vec3 normal, vec3 lightDir, float maxBias, float minBias)
+float ShadowCalculation(sampler2D map, vec4 fragPosLightSpace, vec3 normal, vec3 lightDir)
 {
     if (fragPosLightSpace.w <= 0.0) return 0.0;
     vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
@@ -111,7 +108,7 @@ float ShadowCalculation(sampler2D map, vec4 fragPosLightSpace, vec3 normal, vec3
     if (projCoords.z > 1.0) return 0.0;
     if (projCoords.x < 0.0 || projCoords.x > 1.0 || projCoords.y < 0.0 || projCoords.y > 1.0) return 0.0;
     float currentDepth = projCoords.z;
-    float bias = max(maxBias * (1.0 - dot(normal, lightDir)), minBias);
+    float bias = max(0.05 * (1.0 - dot(normal, lightDir)), 0.005);
 
     float shadow = 0.0;
     vec2 texelSize = 1.0 / textureSize(map, 0);
@@ -127,21 +124,6 @@ float ShadowCalculation(sampler2D map, vec4 fragPosLightSpace, vec3 normal, vec3
     return shadow;
 }
 
-float ShadowCalculationFast(sampler2D map, vec4 fragPosLightSpace, vec3 normal, vec3 lightDir, float maxBias, float minBias)
-{
-    if (fragPosLightSpace.w <= 0.0) return 0.0;
-    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
-    projCoords = projCoords * 0.5 + 0.5;
-    if (projCoords.z > 1.0) return 0.0;
-    if (projCoords.x < 0.0 || projCoords.x > 1.0 || projCoords.y < 0.0 || projCoords.y > 1.0) return 0.0;
-    
-    float currentDepth = projCoords.z;
-    float bias = max(maxBias * (1.0 - dot(normal, lightDir)), minBias);
-    float closestDepth = texture(map, projCoords.xy).r;
-    
-    return currentDepth - bias > closestDepth ? 1.0 : 0.0;
-}
-
 void main() {       
     vec3 currentAlbedo = albedo;
     float currentMetallic = metallic;
@@ -153,9 +135,11 @@ void main() {
     float blendWeight = 0.0;
     bool isFlowing = useFlowMap && flowMapIntensity > 0.0;
 
-    // ОРИГИНАЛЬНАЯ ТЕКСТУРНАЯ ДИНАМИКА КАРТЫ ПОТОКА
     if (isFlowing) {
         vec2 flowDir = texture(flowMap, TexCoords).rg * 2.0 - 1.0;
+        
+        // ДОБАВЛЯЕМ ПОСТОЯННОЕ ТЕЧЕНИЕ К ВЕКТОРУ КАРТЫ ПОТОКА
+        flowDir += vec2(0.6, 0.4); 
         flowDir *= flowMapIntensity;
 
         float cycleTime = uTime * 0.25; 
@@ -254,23 +238,24 @@ void main() {
     vec3 Lo = vec3(0.0);
     vec3 spotOnlyLo = vec3(0.0);
 
-    // ----------------------------------------------------
-    // Directional Light (Sun) & Original Caustics
-    // ----------------------------------------------------
     vec3 L_dir = normalize(-dirLightDirection);
-    float sunShadow = ShadowCalculation(sunShadowMap, FragPosSunSpace, N, L_dir, 0.003, 0.0005);
+    float sunShadow = ShadowCalculation(sunShadowMap, FragPosSunSpace, N, L_dir);
     float spotShadow = 0.0;
     float spotIntensityFactor = 0.0;
 
     vec3 H_dir = normalize(V + L_dir);
     
-    // ОРИГИНАЛЬНЫЙ ТЕКСТУРНЫЙ РАСЧЕТ КАУСТИК
+    // ДОБАВЛЯЕМ ЛЕГКИЙ ШУМ ВРЕМЕНИ ДЛЯ ПЕРЕЛИВА КАУСТИК НА ОДНОТОННЫХ ТЕКСТУРАХ
     float caustics = 1.0;
     if (isFlowing) { 
         vec2 causticUV1 = TexCoords * 4.0 + vec2(uTime * 0.03, uTime * 0.04);
         vec2 causticUV2 = TexCoords * 3.0 - vec2(uTime * 0.02, uTime * 0.05);
         float noise1 = texture(flowMap, causticUV1).r;
         float noise2 = texture(flowMap, causticUV2).g;
+        
+        // Модуляция временем
+        noise1 += sin(causticUV1.x * 5.0 + uTime) * 0.15;
+        noise2 += cos(causticUV2.y * 5.0 + uTime * 1.2) * 0.15;
         
         float causticPattern = noise1 * noise2 * 2.0;
         causticPattern = smoothstep(0.2, 0.8, causticPattern);
@@ -292,39 +277,14 @@ void main() {
     kD_dir *= 1.0 - currentMetallic;     
 
     float NdotL_dir = max(dot(N, L_dir), 0.0);
+    
     Lo += (1.0 - sunShadow) * (kD_dir * currentAlbedo / PI + spec_dir) * radiance_dir * NdotL_dir;
-
-    for(int i = 0; i < 4; ++i) 
-    {
-        vec3 L = normalize(lightPositions[i] - WorldPos);
-        vec3 H = normalize(V + L);
-        float dist = length(lightPositions[i] - WorldPos);
-        
-        float attenuation = 1.0 / (dist * dist + 0.001); 
-        vec3 radiance = lightColors[i] * attenuation;
-
-        float NDF = DistributionGGX(N, H, currentRoughness);
-        float G   = GeometrySmith(N, V, L, currentRoughness);
-        vec3 F    = fresnelSchlick(max(dot(H, V), 0.0), F0);
-        
-        vec3 nominator    = NDF * G * F; 
-        float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.001; 
-        vec3 specular = nominator / denominator;
-        
-        vec3 kS = F;
-        vec3 kD = vec3(1.0) - kS;
-        kD *= 1.0 - currentMetallic;
-
-        float NdotL = max(dot(N, L), 0.0);   
-        Lo += (kD * currentAlbedo / PI + specular) * radiance * NdotL;
-    } 
 
     if (spotEnabled) {
         vec3 L_spot = normalize(spotPosition - WorldPos);
         vec3 H_spot = normalize(V + L_spot);
         float dist_spot = length(spotPosition - WorldPos);
-        
-        float attenuation_spot = 1.0 / (dist_spot * dist_spot + 0.001);
+        float attenuation_spot = 1.0 / (dist_spot * dist_spot);
         vec3 radiance_spot = spotColor * spotIntensity * attenuation_spot;
 
         float NDF_spot = DistributionGGX(N, H_spot, currentRoughness);
@@ -345,7 +305,7 @@ void main() {
         float epsilon = innerCutoff - outerCutoff;
         float intensity = clamp((theta - outerCutoff) / max(epsilon, 0.0001), 0.0, 1.0);
 
-        spotShadow = ShadowCalculationFast(spotShadowMap, FragPosSpotSpace, N, L_spot, 0.0005, 0.0001);
+        spotShadow = ShadowCalculation(spotShadowMap, FragPosSpotSpace, N, L_spot);
         spotIntensityFactor = intensity;
 
         vec3 spotContribution = (1.0 - spotShadow) * intensity * (kD_spot * currentAlbedo / PI + spec_spot) * radiance_spot * NdotL_spot;
@@ -363,11 +323,19 @@ void main() {
         return;
     }
 
-    if (uDebugSpotCenterProbeView) {
+    if (uDebugSpotCenterProbeView)
+    {
         vec3 p = FragPosSpotSpace.xyz / FragPosSpotSpace.w;
         p = p * 0.5 + 0.5;
-        float depth = texture(spotShadowMap, p.xy).r;
-        FragColor = vec4(vec3(depth),1.0);
+
+        float depth =
+            texture(
+                spotShadowMap,
+                p.xy).r;
+
+        FragColor =
+            vec4(vec3(depth),1.0);
+
         return;
     }
 
@@ -378,13 +346,7 @@ void main() {
         return;
     }
 
-    float physicalDepth = max(0.0, -WorldPos.y); 
-    vec3 absorptionCoeff = vec3(0.15, 0.02, 0.005); 
-    vec3 waterAbsorption = exp(-absorptionCoeff * physicalDepth);
-    
-    Lo *= waterAbsorption;
-
-    vec3 ambient = vec3(0.03) * currentAlbedo * ao * waterAbsorption;
+    vec3 ambient = vec3(0.03) * currentAlbedo * ao;
     vec3 color = ambient + Lo;
 
     float cameraDist = length(camPos - WorldPos);
