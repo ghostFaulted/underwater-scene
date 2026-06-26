@@ -85,7 +85,7 @@ SceneRenderContext BuildSceneRenderContext(
 
     // Obliczanie czasu na splajnie dla rekina 
     const float splineTime = std::fmod(appState.sharkVirtualSplineTime / 42.0f, 1.0f);
-    context.animationTimeSeconds = currentFrameTime;
+    context.animationTimeSeconds = appState.sharkVirtualAnimTime;
     context.globalTimeSeconds = currentFrameTime;
     context.splineTime = splineTime;
 
