@@ -30,5 +30,8 @@ Projekt wykorzystuje CMake z automatycznym pobieraniem zależności (FetchConten
 * `C` - Przełączanie trybu kursora (LOCKED - sterowanie kamerą / FREE - obsługa UI i kliknięć).
 * `E` - Włączanie/wyłączanie trybu "Wycieczki" (kamera podąża za łodzią podwodną).
 * **Interakcja 1 (Światło):** Klawisz `F` lub przycisk w UI przełącza reflektor (spotlight) zamontowany na kamerze/łodzi.
-* **Interakcja 2 (Środowisko):** Panel UI pozwala na dynamiczną zmianę gęstości mgły (Exponential Depth Fog) oraz siły prądów morskich (Flow-map intensity).
+* **Interakcja 2 (Zaawansowany Panel UI):** Rozbudowany interfejs graficzny pozwala na dynamiczną modyfikację kluczowych parametrów sceny w czasie rzeczywistym:
+  * **Środowisko i Światło:** Zmiana gęstości mgły (Depth Fog), koloru wody, siły prądów morskich (Flow-map), a także pozycji i jasności głównego światła (Słońca).
+  * **Materiały (PBR):** Suwaki do regulacji właściwości fizycznych (Metallic, Roughness, Tint) niezależnie dla rekina oraz łodzi podwodnej. Możliwość włączenia mikro-detali skóry rekina (Detail Normal Map).
+  * **Diagnostyka i Splajny:** Przełączniki pozwalające na wizualizację trójwymiarowych trajektorii obiektów (Splajnów) oraz podgląd buforów cieni (Shadow Maps) generowanych przez reflektor i słońce.
 * **Interakcja 3 (Picking / Raycasting):** W trybie swobodnego kursora (klawisz `C`), kliknięcie Lewym Przyciskiem Myszy (LPM) na model rekina aktywuje stan ucieczki (rekin znacznie przyspiesza i intensywniej macha ogonem na 4 sekundy).
